@@ -648,13 +648,18 @@ module.exports = {
     },
 
     getServerChangedStateEmbed: function (guildId, serverId, state) {
+        /* state: 0 = online, 1 = offline, 2 = connection lost but battlemetrics reports online. */
         const instance = Client.client.getInstance(guildId);
         const server = instance.serverList[serverId];
+
+        let title = null;
+        if (state === 0) title = Client.client.intlGet(guildId, 'serverJustOnline');
+        else if (state === 1) title = Client.client.intlGet(guildId, 'serverJustOffline');
+        else title = Client.client.intlGet(guildId, 'serverConnectionLost');
+
         return module.exports.getEmbed({
             color: state ? Constants.COLOR_INACTIVE : Constants.COLOR_ACTIVE,
-            title: state ?
-                Client.client.intlGet(guildId, 'serverJustOffline') :
-                Client.client.intlGet(guildId, 'serverJustOnline'),
+            title: title,
             thumbnail: server.img,
             timestamp: true,
             footer: { text: server.title }

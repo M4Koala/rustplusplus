@@ -18,8 +18,10 @@
 
 */
 
+const Constants = require('../util/constants.js');
 const DiscordMessages = require('../discordTools/discordMessages.js');
 const Info = require('../structures/Info');
+const InGameChatHandler = require('../handlers/inGameChatHandler.js');
 const Map = require('../structures/Map');
 const PollingHandler = require('../handlers/pollingHandler.js');
 
@@ -45,6 +47,14 @@ module.exports = {
             rustplus.log(client.intlGet(null, 'errorCap'),
                 client.intlGet(null, 'somethingWrongWithConnection'), 'error');
 
+            /* During an automatic reconnect, keep the reconnect loop alive instead of giving
+               up, the server might just still be flaky. Only actively selected connections
+               (CONNECT button) are aborted, since their tokens might be invalid. */
+            if (!rustplus.isNewConnection && client.activeRustplusInstances[guildId]) {
+                rustplus.disconnect();
+                return;
+            }
+
             instance.activeServer = null;
             client.setInstance(guildId, instance);
 
@@ -62,8 +72,10 @@ module.exports = {
         const info = await rustplus.getInfoAsync();
         if (await rustplus.isResponseValid(info)) rustplus.info = new Info(info.info)
 
+        let wipeDetected = false;
         if (client.rustplusMaps.hasOwnProperty(guildId)) {
             if (client.isJpgImageChanged(guildId, map.map)) {
+                wipeDetected = true;
                 rustplus.map = new Map(map.map, rustplus);
 
                 await rustplus.map.writeMap(false, true);
@@ -92,7 +104,27 @@ module.exports = {
                 client.rustplusReconnectTimers[guildId] = null;
             }
 
-            await DiscordMessages.sendServerChangeStateMessage(guildId, serverId, 0);
+            /* Only announce online when offline was announced, short connection blips within
+               the grace period stay silent. */
+            if (client.rustplusOfflineAnnounced[guildId]) {
+                await DiscordMessages.sendServerChangeStateMessage(guildId, serverId, 0);
+            }
+        }
+        client.rustplusOfflineAnnounced[guildId] = false;
+        client.rustplusFirstDisconnectTime[guildId] = null;
+
+        /* Restore the state stashed at the previous unexpected disconnect, so that AFK-timers,
+           locked crate/cargo timers, custom timers and in-game time tracking survive. */
+        const stash = client.rustplusStashes[guildId];
+        if (stash && stash.serverId === serverId && !rustplus.isNewConnection && !wipeDetected &&
+            (Date.now() - stash.stashedAt) < Constants.MAX_STATE_STASH_AGE_MS) {
+            restoreStashedState(client, rustplus, stash);
+            delete client.rustplusStashes[guildId];
+
+            rustplus.log(client.intlGet(null, 'connectedCap'), client.intlGet(null, 'reconnectedStateRestored'));
+        }
+        else if (stash) {
+            client.discardRustplusStash(guildId);
         }
 
         await DiscordMessages.sendServerMessage(guildId, serverId, null);
@@ -109,6 +141,63 @@ module.exports = {
         rustplus.pollingTaskId = setInterval(PollingHandler.pollingHandler, client.pollingIntervalMs, rustplus, client);
         rustplus.isOperational = true;
 
+        /* Flush in-game messages that were queued while disconnected. */
+        if (rustplus.inGameChatQueue.length !== 0 && rustplus.inGameChatTimeout === null) {
+            InGameChatHandler.inGameChatHandler(rustplus, client);
+        }
+
         rustplus.updateLeaderRustPlusLiteInstance();
     },
 };
+
+function restoreStashedState(client, rustplus, stash) {
+    const old = stash.rustplus;
+
+    /* Take over the runtime structures of the previous instance and re-bind their internal
+       rustplus references to the new instance. Their timers are still running. */
+    if (old.time) {
+        rustplus.time = old.time;
+        rustplus.time.rustplus = rustplus;
+    }
+    if (old.team) {
+        rustplus.team = old.team;
+        rustplus.team.rustplus = rustplus;
+        for (const player of rustplus.team.players) {
+            player.rustplus = rustplus;
+        }
+    }
+    if (old.mapMarkers) {
+        rustplus.mapMarkers = old.mapMarkers;
+        rustplus.mapMarkers.rustplus = rustplus;
+    }
+
+    /* In-game time tracking */
+    rustplus.passedFirstSunriseOrSunset = old.passedFirstSunriseOrSunset;
+    rustplus.startTimeObject = old.startTimeObject;
+    rustplus.stateRestoredAt = stash.stashedAt;
+
+    /* Histories & misc state */
+    rustplus.storageMonitors = old.storageMonitors;
+    rustplus.events = old.events;
+    rustplus.allConnections = old.allConnections;
+    rustplus.playerConnections = old.playerConnections;
+    rustplus.allDeaths = old.allDeaths;
+    rustplus.playerDeaths = old.playerDeaths;
+    rustplus.firstPollItems = old.firstPollItems;
+    rustplus.foundSubscriptionItems = old.foundSubscriptionItems;
+    rustplus.inGameChatQueue = old.inGameChatQueue;
+    rustplus.messagesSentByBot = old.messagesSentByBot;
+    rustplus.uptimeServer = old.uptimeServer;
+
+    /* Re-create the custom timers on the new instance with their remaining time. Timers that
+       expired while disconnected already queued their message in inGameChatQueue. */
+    for (const [id, content] of Object.entries(old.timers)) {
+        if (!content.timer.getStateRunning()) continue;
+
+        const remainingMs = content.timer.getTimeLeft();
+        content.timer.stop();
+        if (remainingMs <= 0) continue;
+        rustplus.addCustomTimer(parseInt(id), content.message, remainingMs);
+    }
+    old.timers = new Object();
+}

@@ -44,9 +44,10 @@ module.exports = {
 
         if (rustplus.isFirstPoll) {
             rustplus.info = new Info(info.info);
-            rustplus.time = new Time(time.time, rustplus, client);
-            rustplus.team = new Team(teamInfo.teamInfo, rustplus);
-            rustplus.mapMarkers = new MapMarkers(mapMarkers.mapMarkers, rustplus, client);
+            /* Structures already exist when they were restored from a previous connection. */
+            if (!rustplus.time) rustplus.time = new Time(time.time, rustplus, client);
+            if (!rustplus.team) rustplus.team = new Team(teamInfo.teamInfo, rustplus);
+            if (!rustplus.mapMarkers) rustplus.mapMarkers = new MapMarkers(mapMarkers.mapMarkers, rustplus, client);
         }
 
         await module.exports.handlers(rustplus, client, info, mapMarkers, teamInfo, time);

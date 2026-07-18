@@ -56,6 +56,9 @@ class DiscordBot extends Discord.Client {
         this.rustplusLiteReconnectTimers = new Object();
         this.rustplusReconnecting = new Object();
         this.rustplusMaps = new Object();
+        this.rustplusStashes = new Object();            /* Stashed state of disconnected rustplus instances. */
+        this.rustplusOfflineAnnounced = new Object();   /* Whether the offline message was sent for the guild. */
+        this.rustplusFirstDisconnectTime = new Object();
 
         this.uptimeBot = null;
 
@@ -337,7 +340,11 @@ class DiscordBot extends Discord.Client {
     resetRustplusVariables(guildId) {
         this.activeRustplusInstances[guildId] = false;
         this.rustplusReconnecting[guildId] = false;
+        this.rustplusOfflineAnnounced[guildId] = false;
+        this.rustplusFirstDisconnectTime[guildId] = null;
         delete this.rustplusMaps[guildId];
+
+        this.discardRustplusStash(guildId);
 
         if (this.rustplusReconnectTimers[guildId]) {
             clearTimeout(this.rustplusReconnectTimers[guildId]);
@@ -347,6 +354,20 @@ class DiscordBot extends Discord.Client {
             clearTimeout(this.rustplusLiteReconnectTimers[guildId]);
             this.rustplusLiteReconnectTimers[guildId] = null;
         }
+    }
+
+    discardRustplusStash(guildId) {
+        /* Discards state that was stashed at an unexpected disconnect, stopping all timers
+           that were kept running for a possible reconnection. */
+        const stash = this.rustplusStashes[guildId];
+        if (!stash) return;
+
+        const rustplus = stash.rustplus;
+        if (rustplus.mapMarkers) rustplus.mapMarkers.reset();
+        for (const [id, content] of Object.entries(rustplus.timers)) content.timer.stop();
+        rustplus.timers = new Object();
+
+        delete this.rustplusStashes[guildId];
     }
 
     isJpgImageChanged(guildId, map) {

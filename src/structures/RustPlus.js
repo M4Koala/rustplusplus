@@ -57,6 +57,7 @@ class RustPlus extends RustPlusLib {
         this.isDeleted = false;             /* Is the rustplus instance deleted? */
         this.isNewConnection = false;       /* Is it an actively selected connection (pressed CONNECT button)? */
         this.isFirstPoll = true;            /* Is this the first poll since connection started? */
+        this.stateRestoredAt = null;        /* Time of the disconnect whose stashed state was restored, if any. */
 
         /* Interval ids */
         this.pollingTaskId = 0;             /* The id of the main polling mechanism of the rustplus instance. */
@@ -273,6 +274,20 @@ class RustPlus extends RustPlusLib {
 
     sendInGameMessage(message) {
         InGameChatHandler.inGameChatHandler(this, Client.client, message);
+    }
+
+    addCustomTimer(id, message, delayMs) {
+        this.timers[id] = {
+            timer: new Timer.timer(
+                () => {
+                    this.sendInGameMessage(Client.client.intlGet(this.guildId, 'timer',
+                        { message: message }), 'TIMER');
+                    delete this.timers[id]
+                },
+                delayMs),
+            message: message
+        };
+        this.timers[id].timer.start();
     }
 
     async sendEvent(setting, text, event, embed_color, firstPoll = false, image = null) {
@@ -2494,17 +2509,7 @@ class RustPlus extends RustPlusLib {
                     id += 1;
                 }
 
-                this.timers[id] = {
-                    timer: new Timer.timer(
-                        () => {
-                            this.sendInGameMessage(Client.client.intlGet(this.guildId, 'timer',
-                                { message: message }), 'TIMER');
-                            delete this.timers[id]
-                        },
-                        timeSeconds * 1000),
-                    message: message
-                };
-                this.timers[id].timer.start();
+                this.addCustomTimer(id, message, timeSeconds * 1000);
 
                 return Client.client.intlGet(this.guildId, 'timerSet', { time: time });
             } break;

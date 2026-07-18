@@ -24,6 +24,8 @@ module.exports = {
         pollingIntervalMs: process.env.RPP_POLLING_INTERVAL || 10000,
         showCallStackError: process.env.RPP_LOG_CALL_STACK || false,
         reconnectIntervalMs: process.env.RPP_RECONNECT_INTERVAL || 15000,
+        /* How long a connection must stay down before the server is announced offline. */
+        offlineGracePeriodMs: process.env.RPP_OFFLINE_GRACE_PERIOD || 60000,
     },
     discord: {
         username: process.env.RPP_DISCORD_USERNAME || 'rustplusplus',

@@ -57,6 +57,10 @@ module.exports = {
     DEFAULT_CARGO_SHIP_EGRESS_TIME_MS: 50 * 60 * 1000, /* 50 min */
     DEFAULT_OIL_RIG_LOCKED_CRATE_UNLOCK_TIME_MS: 15 * 60 * 1000, /* 15 min */
 
+    /* Reconnection state carry-over */
+    MAX_STATE_STASH_AGE_MS: 2 * 60 * 60 * 1000, /* Discard stashed state after 2 hours offline. */
+    MAX_TIME_LEARNING_GAP_SECONDS: 15 * 60, /* Max offline gap to compensate in-game time learning for. */
+
     /* Other constants */
     PATROL_HELI_DOWNED_RADIUS: 400,
     OIL_RIG_CHINOOK_47_MAX_SPAWN_DISTANCE: 550,

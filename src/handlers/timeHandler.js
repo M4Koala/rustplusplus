@@ -20,6 +20,8 @@
 
 const _ = require('lodash');
 
+const Constants = require('../util/constants.js');
+
 module.exports = {
     handler: function (rustplus, client, time) {
         /* Check time changes */
@@ -33,8 +35,15 @@ module.exports = {
         const newTime = time.time;
 
         if (rustplus.isFirstPoll) {
-            rustplus.time.startTime = newTime;
-            rustplus.startTimeObject[newTime] = 0;
+            if (rustplus.stateRestoredAt !== null) {
+                /* The time tracking state was restored from before a disconnect, compensate
+                   for the offline gap instead of restarting the learning. */
+                module.exports.handleReconnectGap(rustplus, client, time, prevTime, newTime);
+            }
+            else {
+                rustplus.time.startTime = newTime;
+                rustplus.startTimeObject[newTime] = 0;
+            }
             return;
         }
 
@@ -129,5 +138,58 @@ module.exports = {
 
             rustplus.time.timeTillDay[newTime] = 0;
         }
+    },
+
+    handleReconnectGap: function (rustplus, client, time, prevTime, newTime) {
+        /* prevTime is the last in-game time seen before the disconnect. The learning
+           accumulators count real seconds, so a short offline gap can be compensated by
+           adding the offline wall-clock time to them. */
+        const gapSeconds = (Date.now() - rustplus.stateRestoredAt) / 1000;
+        const wasDay = (prevTime >= time.sunrise) && (prevTime < time.sunset);
+        const isDay = (newTime >= time.sunrise) && (newTime < time.sunset);
+        const crossedStartTime = module.exports.crossedTimePoint(prevTime, newTime, rustplus.time.startTime);
+
+        if (gapSeconds > Constants.MAX_TIME_LEARNING_GAP_SECONDS || wasDay !== isDay || crossedStartTime) {
+            /* Too much happened while offline. Restart the in-progress learning cycle, but
+               keep the already learned timeTillDay/timeTillNight tables (when active). */
+            rustplus.passedFirstSunriseOrSunset = false;
+            rustplus.time.startTime = newTime;
+            rustplus.time.timeTillDay = new Object();
+            rustplus.time.timeTillNight = new Object();
+            rustplus.startTimeObject = new Object();
+            rustplus.startTimeObject[newTime] = 0;
+            return;
+        }
+
+        /* Short gap within the same day/night phase, compensate the accumulators. */
+        for (const id in rustplus.startTimeObject) {
+            rustplus.startTimeObject[id] += gapSeconds;
+        }
+
+        if (rustplus.passedFirstSunriseOrSunset) {
+            if (isDay) {
+                for (const id in rustplus.time.timeTillNight) {
+                    rustplus.time.timeTillNight[id] += gapSeconds;
+                }
+                rustplus.time.timeTillNight[newTime] = 0;
+            }
+            else {
+                for (const id in rustplus.time.timeTillDay) {
+                    rustplus.time.timeTillDay[id] += gapSeconds;
+                }
+                rustplus.time.timeTillDay[newTime] = 0;
+            }
+        }
+        else {
+            rustplus.startTimeObject[newTime] = 0;
+        }
+    },
+
+    crossedTimePoint: function (from, to, point) {
+        /* Whether the in-game clock passed a time point while moving from -> to (with
+           midnight wrap-around). */
+        if (from === to) return false;
+        if (from < to) return point > from && point <= to;
+        return point > from || point <= to;
     }
 }

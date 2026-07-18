@@ -31,6 +31,14 @@ module.exports = {
 
         /* Time to write a message from the queue. If message === null, that means that its a timer call. */
         if (message === null) {
+            /* While disconnected, keep the queued messages so they can be flushed after
+               the connection is restored. */
+            if (!rustplus.isOperational) {
+                clearTimeout(rustplus.inGameChatTimeout);
+                rustplus.inGameChatTimeout = null;
+                return;
+            }
+
             if (rustplus.inGameChatQueue.length !== 0) {
                 clearTimeout(rustplus.inGameChatTimeout);
                 rustplus.inGameChatTimeout = null;
