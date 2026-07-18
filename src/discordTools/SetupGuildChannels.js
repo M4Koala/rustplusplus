@@ -20,6 +20,7 @@
 
 const Discord = require('discord.js');
 
+const Config = require('../../config');
 const DiscordTools = require('../discordTools/discordTools.js');
 const PermissionHandler = require('../handlers/permissionHandler.js');
 
@@ -95,20 +96,22 @@ async function addTextChannel(name, idName, client, guild, parent, permissionWri
         }
     }
 
-    const perms = PermissionHandler.getPermissionsReset(client, guild, permissionWrite);
+    if (Config.discord.manageChannelPermissions) {
+        const perms = PermissionHandler.getPermissionsReset(client, guild, permissionWrite);
 
-    try {
-        await channel.permissionOverwrites.set(perms);
+        try {
+            await channel.permissionOverwrites.set(perms);
+        }
+        catch (e) {
+            /* Ignore */
+        }
+
+        /* Currently, this halts the entire application... Too lazy to fix...
+           It is possible to just remove the channels and let the bot recreate them with correct name language */
+        //channel.setName(name);
+
+        channel.lockPermissions();
     }
-    catch (e) {
-        /* Ignore */
-    }
-
-    /* Currently, this halts the entire application... Too lazy to fix...
-       It is possible to just remove the channels and let the bot recreate them with correct name language */
-    //channel.setName(name);
-
-    channel.lockPermissions();
 }
 
 async function reorderChannels(client, guild, category, idNamesInOrder) {

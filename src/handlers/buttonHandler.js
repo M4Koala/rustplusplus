@@ -607,6 +607,13 @@ module.exports = async (client, interaction) => {
         }
 
         await DiscordMessages.sendServerMessage(guildId, ids.serverId, null, interaction);
+
+        /* Deliberate disconnect, the wipe is over: throw out the history and information of
+           the previous wipe. */
+        await DiscordTools.replaceTextChannel(guildId, 'events');
+        await DiscordTools.replaceTextChannel(guildId, 'teamchat');
+        await DiscordTools.replaceTextChannel(guildId, 'activity');
+        await DiscordTools.clearInformationChannel(guildId);
     }
     else if (interaction.customId.startsWith('ServerDelete')) {
         const ids = JSON.parse(interaction.customId.replace('ServerDelete', ''));
@@ -626,6 +633,12 @@ module.exports = async (client, interaction) => {
             await DiscordTools.clearTextChannel(rustplus.guildId, instance.channelId.switches, 100);
             await DiscordTools.clearTextChannel(rustplus.guildId, instance.channelId.switchGroups, 100);
             await DiscordTools.clearTextChannel(rustplus.guildId, instance.channelId.storageMonitors, 100);
+
+            /* The active server is being deleted: also throw out the wipe's history. */
+            await DiscordTools.replaceTextChannel(guildId, 'events');
+            await DiscordTools.replaceTextChannel(guildId, 'teamchat');
+            await DiscordTools.replaceTextChannel(guildId, 'activity');
+            await DiscordTools.clearInformationChannel(guildId);
 
             instance.activeServer = null;
             client.setInstance(guildId, instance);

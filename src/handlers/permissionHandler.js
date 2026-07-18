@@ -20,6 +20,7 @@
 
 const Discord = require('discord.js');
 
+const Config = require('../../config');
 const DiscordTools = require('../discordTools/discordTools.js');
 
 module.exports = {
@@ -91,6 +92,8 @@ module.exports = {
     },
 
     resetPermissionsAllChannels: async function (client, guild) {
+        if (!Config.discord.manageChannelPermissions) return;
+
         const instance = client.getInstance(guild.id);
 
         if (instance.channelId.category === null) return;

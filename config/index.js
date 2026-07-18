@@ -32,5 +32,8 @@ module.exports = {
         clientId: process.env.RPP_DISCORD_CLIENT_ID || '',
         token: process.env.RPP_DISCORD_TOKEN || '',
         needAdminPrivileges: process.env.RPP_NEED_ADMIN_PRIVILEGES || true, /* If true, only admins can delete (server, switch..), manage credentials and reset a channel */
+        /* If false, the bot never touches channel/category permission overwrites, so manually
+           configured permissions on the rustplusplus category/channels are left alone. */
+        manageChannelPermissions: (process.env.RPP_MANAGE_CHANNEL_PERMISSIONS ?? 'true') !== 'false',
     }
 };

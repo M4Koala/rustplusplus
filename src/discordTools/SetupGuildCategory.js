@@ -18,6 +18,7 @@
 
 */
 
+const Config = require('../../config');
 const DiscordTools = require('../discordTools/discordTools.js');
 const PermissionHandler = require('../handlers/permissionHandler.js');
 
@@ -41,13 +42,15 @@ module.exports = async (client, guild) => {
         client.setInstance(guild.id, instance);
     }
 
-    const perms = PermissionHandler.getPermissionsReset(client, guild, false);
+    if (Config.discord.manageChannelPermissions) {
+        const perms = PermissionHandler.getPermissionsReset(client, guild, false);
 
-    try {
-        await category.permissionOverwrites.set(perms);
-    }
-    catch (e) {
-        /* Ignore */
+        try {
+            await category.permissionOverwrites.set(perms);
+        }
+        catch (e) {
+            /* Ignore */
+        }
     }
 
     return category;

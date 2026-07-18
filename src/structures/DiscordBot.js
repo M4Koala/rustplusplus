@@ -219,12 +219,14 @@ class DiscordBot extends Discord.Client {
         let category = await require('../discordTools/SetupGuildCategory')(this, guild);
         await require('../discordTools/SetupGuildChannels')(this, guild, category);
         if (firstTime) {
-            const perms = PermissionHandler.getPermissionsRemoved(this, guild);
-            try {
-                await category.permissionOverwrites.set(perms);
-            }
-            catch (e) {
-                /* Ignore */
+            if (Config.discord.manageChannelPermissions) {
+                const perms = PermissionHandler.getPermissionsRemoved(this, guild);
+                try {
+                    await category.permissionOverwrites.set(perms);
+                }
+                catch (e) {
+                    /* Ignore */
+                }
             }
         }
         else {

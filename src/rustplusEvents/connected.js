@@ -95,29 +95,8 @@ module.exports = {
         const info = await rustplus.getInfoAsync();
         if (await rustplus.isResponseValid(info)) rustplus.info = new Info(info.info)
 
-        let wipeDetected = false;
-        if (client.rustplusMaps.hasOwnProperty(guildId)) {
-            if (client.isJpgImageChanged(guildId, map.map)) {
-                wipeDetected = true;
-                rustplus.map = new Map(map.map, rustplus);
-
-                await rustplus.map.writeMap(false, true);
-                await DiscordMessages.sendServerWipeDetectedMessage(guildId, serverId);
-                await DiscordMessages.sendInformationMapMessage(guildId);
-            }
-            else {
-                rustplus.map = new Map(map.map, rustplus);
-
-                await rustplus.map.writeMap(false, true);
-                await DiscordMessages.sendInformationMapMessage(guildId);
-            }
-        }
-        else {
-            rustplus.map = new Map(map.map, rustplus);
-
-            await rustplus.map.writeMap(false, true);
-            await DiscordMessages.sendInformationMapMessage(guildId);
-        }
+        const wipeDetected = client.rustplusMaps.hasOwnProperty(guildId) &&
+            client.isJpgImageChanged(guildId, map.map);
 
         /* Restore the state stashed at the previous unexpected disconnect, so that AFK-timers,
            locked crate/cargo timers, custom timers and in-game time tracking survive. */
@@ -134,17 +113,23 @@ module.exports = {
         }
 
         /* On a fresh wipe (connected to another server than last time, or a map wipe was
-           detected) throw out the previous wipe's history from the events, teamchat and
-           activity channels. */
+           detected) throw out the previous wipe's history from the events, teamchat, activity
+           and information channels, before any new messages are posted below. */
         if (wipeDetected || (rustplus.isNewConnection && instance.lastConnectedServerId !== serverId)) {
             await DiscordTools.replaceTextChannel(guildId, 'events');
             await DiscordTools.replaceTextChannel(guildId, 'teamchat');
             await DiscordTools.replaceTextChannel(guildId, 'activity');
+            await DiscordTools.clearInformationChannel(guildId);
         }
         if (instance.lastConnectedServerId !== serverId) {
             instance.lastConnectedServerId = serverId;
             client.setInstance(guildId, instance);
         }
+
+        rustplus.map = new Map(map.map, rustplus);
+        await rustplus.map.writeMap(false, true);
+        if (wipeDetected) await DiscordMessages.sendServerWipeDetectedMessage(guildId, serverId);
+        await DiscordMessages.sendInformationMapMessage(guildId);
 
         await DiscordMessages.sendServerMessage(guildId, serverId, null);
 

@@ -21,6 +21,7 @@
 const Discord = require('discord.js');
 
 const Client = require('../../index.ts');
+const Config = require('../../config');
 
 module.exports = {
     getGuild: function (guildId) {
@@ -191,7 +192,7 @@ module.exports = {
                 return await guild.channels.create({
                     name: name,
                     type: Discord.ChannelType.GuildCategory,
-                    permissionOverwrites: [{
+                    permissionOverwrites: !Config.discord.manageChannelPermissions ? [] : [{
                         id: guild.roles.everyone.id,
                         deny: [Discord.PermissionFlagsBits.SendMessages]
                     }]
@@ -227,7 +228,7 @@ module.exports = {
                 return await guild.channels.create({
                     name: name,
                     type: Discord.ChannelType.GuildText,
-                    permissionOverwrites: [{
+                    permissionOverwrites: !Config.discord.manageChannelPermissions ? [] : [{
                         id: guild.roles.everyone.id,
                         deny: [Discord.PermissionFlagsBits.SendMessages]
                     }],
@@ -330,6 +331,19 @@ module.exports = {
                 }
             }
         }
+    },
+
+    clearInformationChannel: async function (guildId) {
+        /* Clears the information channel and forgets the tracked message ids, so that the
+           next connection posts fresh information messages. */
+        const instance = Client.client.getInstance(guildId);
+
+        await module.exports.clearTextChannel(guildId, instance.channelId.information, 100);
+
+        for (const key of Object.keys(instance.informationMessageId)) {
+            instance.informationMessageId[key] = null;
+        }
+        Client.client.setInstance(guildId, instance);
     },
 
     getDiscordFormattedDate: function (unixtime) {
