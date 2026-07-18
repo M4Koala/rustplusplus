@@ -234,9 +234,6 @@ async function pairingServerHandler(client, guild, title, message, body) {
     const serverId = `${body.ip}-${body.port}`;
     const server = instance.serverList[serverId];
 
-    let messageObj = undefined;
-    if (server) messageObj = await DiscordTools.getMessageById(guild.id, instance.channelId.servers, server.messageId);
-
     let battlemetricsId = null;
     const bmInstance = new Battlemetrics(null, title);
     await bmInstance.setup();
@@ -262,7 +259,10 @@ async function pairingServerHandler(client, guild, title, message, body) {
         storageMonitors: server ? server.storageMonitors : {},
         markers: server ? server.markers : {},
         switchGroups: server ? server.switchGroups : {},
-        messageId: (messageObj !== undefined) ? messageObj.id : null,
+        /* Keep the currently tracked server message, sendServerMessage re-posts on its own
+           when the message no longer exists. Resolving the message here raced the connect
+           flow and produced duplicate server cards. */
+        messageId: instance.serverList[serverId] ? instance.serverList[serverId].messageId : null,
         battlemetricsId: battlemetricsId,
         connect: (!bmInstance.lastUpdateSuccessful) ? null :
             `connect ${bmInstance.server_ip}:${bmInstance.server_port}`,

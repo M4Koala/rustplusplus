@@ -257,30 +257,51 @@ module.exports = {
     },
 
     replaceTextChannel: async function (guildId, idName) {
-        /* Replaces a text channel with an empty clone (name/permissions/position preserved) to
-           wipe its entire history instantly, deleting messages one by one would take hours for
-           months of history. Returns the new channel, or the old one if cloning failed. */
+        /* Replaces a text channel with an empty clone (name/permissions preserved) to wipe its
+           entire history instantly, deleting messages one by one would take hours for months of
+           history. The channel id tracking is only updated after the old channel was
+           successfully deleted, on any failure the clone is rolled back and the original
+           channel stays in place. Returns the channel that is tracked afterwards. */
         const instance = Client.client.getInstance(guildId);
         const channel = module.exports.getTextChannelById(guildId, instance.channelId[idName]);
         if (!channel) return undefined;
 
+        const position = channel.position;
+
+        let clone = undefined;
         try {
-            const clone = await channel.clone();
-            await clone.setPosition(channel.position);
-
-            instance.channelId[idName] = clone.id;
-            Client.client.setInstance(guildId, instance);
-
+            clone = await channel.clone();
             await channel.delete();
-            return clone;
         }
         catch (e) {
             Client.client.log(Client.client.intlGet(null, 'errorCap'), `replaceTextChannel: ${e}`, 'error');
 
-            /* Fall back to clearing the most recent messages. */
-            await module.exports.clearTextChannel(guildId, instance.channelId[idName], 100);
+            /* Roll back the clone (if any), keep the original channel and fall back to
+               clearing its messages. */
+            if (clone !== undefined) {
+                try {
+                    await clone.delete();
+                }
+                catch (e2) {
+                    /* Ignore */
+                }
+            }
+
+            await module.exports.clearTextChannel(guildId, channel.id, 100);
             return channel;
         }
+
+        instance.channelId[idName] = clone.id;
+        Client.client.setInstance(guildId, instance);
+
+        try {
+            await clone.setPosition(position);
+        }
+        catch (e) {
+            /* Cosmetic only, ignore */
+        }
+
+        return clone;
     },
 
     clearTextChannel: async function (guildId, channelId, numberOfMessages) {
@@ -302,8 +323,10 @@ module.exports = {
                 }
             }
 
-            /* Fix for messages older than 14 days */
-            let messages = [];
+            /* Fix for messages older than 14 days, those cannot be bulk deleted. Note: the
+               upstream version iterated the fetched Collection via Object.keys() which is
+               always empty for a Map, so old messages were never actually deleted. */
+            let messages = null;
             try {
                 messages = await channel.messages.fetch({ limit: 100 });
             }
@@ -312,18 +335,18 @@ module.exports = {
                     Client.client.intlGet(null, 'couldNotPerformMessagesFetch', { channel: channelId }), 'error');
             }
 
-            if (Object.keys(messages).length === 0) {
+            if (messages === null || messages.size === 0) {
                 return;
             }
 
-            for (let message of messages) {
-                message = message[1];
-                if (!message.author.bot) {
-                    break;
-                }
+            let deleted = 0;
+            for (const message of messages.values()) {
+                if (deleted >= numberOfMessages) break;
+                if (!message.author.bot) continue;
 
                 try {
                     await message.delete();
+                    deleted += 1;
                 }
                 catch (e) {
                     Client.client.log(Client.client.intlGet(null, 'errorCap'),
