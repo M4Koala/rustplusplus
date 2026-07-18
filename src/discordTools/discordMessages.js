@@ -29,6 +29,8 @@ const DiscordSelectMenus = require('./discordSelectMenus.js');
 const DiscordTools = require('./discordTools.js');
 const Scrape = require('../util/scrape.js');
 
+const serverMessageQueue = new Object();
+
 module.exports = {
     sendMessage: async function (guildId, content, messageId, channelId, interaction = null) {
         if (interaction) {
@@ -56,21 +58,17 @@ module.exports = {
     },
 
     sendServerMessage: async function (guildId, serverId, state = null, interaction = null) {
-        const instance = Client.client.getInstance(guildId);
-        const server = instance.serverList[serverId];
-
-        const content = {
-            embeds: [await DiscordEmbeds.getServerEmbed(guildId, serverId)],
-            components: DiscordButtons.getServerButtons(guildId, serverId, state)
-        }
-
-        const message = await module.exports.sendMessage(guildId, content, server.messageId,
-            instance.channelId.servers, interaction);
-
-        if (!interaction) {
-            instance.serverList[serverId].messageId = message.id;
-            Client.client.setInstance(guildId, instance);
-        }
+        /* Concurrent calls for the same server (e.g. a redelivered pairing notification and
+           the connect flow at bot startup) would each post a new message when the tracked
+           message id is stale, creating duplicate server cards. Serialize them per server,
+           the queued call re-reads the message id stored by the previous one. */
+        const key = `${guildId}-${serverId}`;
+        const previous = serverMessageQueue[key] ?? Promise.resolve();
+        const current = previous.then(() => sendServerMessageTask(guildId, serverId, state, interaction))
+            .catch(e => Client.client.log(Client.client.intlGet(null, 'errorCap'),
+                `sendServerMessage: ${e}`, 'error'));
+        serverMessageQueue[key] = current;
+        return current;
     },
 
     sendTrackerMessage: async function (guildId, trackerId, interaction = null) {
@@ -600,4 +598,23 @@ module.exports = {
 
         await Client.client.interactionEditReply(interaction, content);
     },
+}
+
+async function sendServerMessageTask(guildId, serverId, state, interaction) {
+    const instance = Client.client.getInstance(guildId);
+    const server = instance.serverList[serverId];
+    if (!server) return;
+
+    const content = {
+        embeds: [await DiscordEmbeds.getServerEmbed(guildId, serverId)],
+        components: DiscordButtons.getServerButtons(guildId, serverId, state)
+    }
+
+    const message = await module.exports.sendMessage(guildId, content, server.messageId,
+        instance.channelId.servers, interaction);
+
+    if (!interaction && message) {
+        instance.serverList[serverId].messageId = message.id;
+        Client.client.setInstance(guildId, instance);
+    }
 }
