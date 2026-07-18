@@ -228,6 +228,7 @@
     "commandsResearchDesc": "Display the cost to research an item.",
     "commandsResetAlarmsDesc": "Reset alarms channel.",
     "commandsResetDesc": "Reset Discord channels.",
+    "commandsResetHistoryDesc": "Wipe the events, teamchat and activity channels (replaced with empty ones).",
     "commandsResetInformationDesc": "Reset information channel.",
     "commandsResetServersDesc": "Reset servers channel.",
     "commandsResetSettingsDesc": "Reset settings channel.",

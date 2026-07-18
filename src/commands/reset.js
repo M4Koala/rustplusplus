@@ -37,6 +37,9 @@ module.exports = {
 				.setName('discord')
 				.setDescription(client.intlGet(guildId, 'commandsResetDesc')))
 			.addSubcommand(subcommand => subcommand
+				.setName('history')
+				.setDescription(client.intlGet(guildId, 'commandsResetHistoryDesc')))
+			.addSubcommand(subcommand => subcommand
 				.setName('information')
 				.setDescription(client.intlGet(guildId, 'commandsResetInformationDesc')))
 			.addSubcommand(subcommand => subcommand
@@ -120,6 +123,18 @@ module.exports = {
 				client.log(client.intlGet(null, 'infoCap'), client.intlGet(null, 'slashCommandValueChange', {
 					id: `${verifyId}`,
 					value: `discord`
+				}));
+			} break;
+
+			case 'history': {
+				/* Replace the history channels with empty clones, wiping all old messages. */
+				await DiscordTools.replaceTextChannel(guild.id, 'events');
+				await DiscordTools.replaceTextChannel(guild.id, 'teamchat');
+				await DiscordTools.replaceTextChannel(guild.id, 'activity');
+
+				client.log(client.intlGet(null, 'infoCap'), client.intlGet(null, 'slashCommandValueChange', {
+					id: `${verifyId}`,
+					value: `history`
 				}));
 			} break;
 

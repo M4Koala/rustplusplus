@@ -256,6 +256,7 @@ Subcommand | Options | Description | Required
 Subcommand | Options | Description | Required
 ---------- | ------- | ----------- | --------
 `discord` | &nbsp; | Reset discord channels. | &nbsp;
+`history` | &nbsp; | Wipe the events, teamchat and activity channels (replaced with empty ones). | &nbsp;
 `information` | &nbsp; | Reset information channel. | &nbsp;
 `servers` | &nbsp; | Reset servers channel. | &nbsp;
 `settings` | &nbsp; | Reset settings channel. | &nbsp;
