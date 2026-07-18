@@ -79,7 +79,37 @@ module.exports = {
             if (minDistance === 0) break;
         }
 
-        return minDistance > threshold ? null : closestString;
+        if (minDistance <= threshold) return closestString;
+
+        /* No close-enough match. Try partial matching, e.g. 'blueprint fragment' should
+           match 'Basic Blueprint Fragment'. The shortest matching entry wins (most specific). */
+        const searchLower = string.toLowerCase().trim();
+        if (searchLower === '') return null;
+
+        /* Entries that contain the search string as a substring. */
+        let substringMatch = null;
+        for (const currentString of array) {
+            if (currentString.toLowerCase().includes(searchLower)) {
+                if (substringMatch === null || currentString.length < substringMatch.length) {
+                    substringMatch = currentString;
+                }
+            }
+        }
+        if (substringMatch !== null) return substringMatch;
+
+        /* Entries that contain every word of the search string, e.g. 'adv blueprint frag'
+           should match 'Advanced Blueprint Fragment'. */
+        const searchWords = searchLower.split(/\s+/);
+        let wordsMatch = null;
+        for (const currentString of array) {
+            const currentLower = currentString.toLowerCase();
+            if (searchWords.every(word => currentLower.includes(word))) {
+                if (wordsMatch === null || currentString.length < wordsMatch.length) {
+                    wordsMatch = currentString;
+                }
+            }
+        }
+        return wordsMatch;
     },
 }
 
