@@ -29,13 +29,20 @@ module.exports = async (client, guild) => {
             categoryId = channelId;
             continue;
         }
+        if (channelId === null) continue;
 
-        await DiscordTools.removeTextChannel(guild.id, channelId);
-        instance.channelId[channelName] = null;
+        /* Keep the channel id when the deletion failed, so that a still existing channel is
+           reused instead of being replaced by a duplicate on the next setup. */
+        const stillExists = DiscordTools.getTextChannelById(guild.id, channelId) !== undefined;
+        const removed = await DiscordTools.removeTextChannel(guild.id, channelId);
+        if (removed || !stillExists) instance.channelId[channelName] = null;
     }
 
-    await DiscordTools.removeCategory(guild.id, categoryId);
-    instance.channelId['category'] = null;
+    if (categoryId !== null) {
+        const stillExists = DiscordTools.getCategoryById(guild.id, categoryId) !== undefined;
+        const removed = await DiscordTools.removeCategory(guild.id, categoryId);
+        if (removed || !stillExists) instance.channelId['category'] = null;
+    }
 
     client.setInstance(guild.id, instance);
 };

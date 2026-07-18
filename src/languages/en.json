@@ -308,6 +308,7 @@
     "couldNotPerformMessageDelete": "Could not perform message delete.",
     "couldNotPerformMessagesFetch": "Could not perform messages fetch on channel: {channel}",
     "couldNotRegisterSlashCommands": "Could not register Slash Commands for guild: {guildId}. ",
+    "couldNotReorderChannels": "Could not reorder channels for guild: {guildId}",
     "couldNotSetParent": "Could not set parent for channel: {channelId}",
     "craft": "Craft",
     "crate": "Crate",

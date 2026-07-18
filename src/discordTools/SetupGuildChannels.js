@@ -18,23 +18,38 @@
 
 */
 
+const Discord = require('discord.js');
+
 const DiscordTools = require('../discordTools/discordTools.js');
 const PermissionHandler = require('../handlers/permissionHandler.js');
 
 module.exports = async (client, guild, category) => {
-    await addTextChannel(client.intlGet(guild.id, 'channelNameInformation'), 'information', client, guild, category);
-    await addTextChannel(client.intlGet(guild.id, 'channelNameServers'), 'servers', client, guild, category);
-    await addTextChannel(client.intlGet(guild.id, 'channelNameSettings'), 'settings', client, guild, category);
-    await addTextChannel(client.intlGet(guild.id, 'channelNameCommands'), 'commands', client, guild, category, true);
-    await addTextChannel(client.intlGet(guild.id, 'channelNameEvents'), 'events', client, guild, category);
-    await addTextChannel(client.intlGet(guild.id, 'channelNameTeamchat'), 'teamchat', client, guild, category, true);
-    await addTextChannel(client.intlGet(guild.id, 'channelNameSwitches'), 'switches', client, guild, category);
-    await addTextChannel(client.intlGet(guild.id, 'channelNameSwitchGroups'), 'switchGroups', client, guild, category);
-    await addTextChannel(client.intlGet(guild.id, 'channelNameAlarms'), 'alarms', client, guild, category);
-    await addTextChannel(client.intlGet(guild.id, 'channelNameStorageMonitors'),
-        'storageMonitors', client, guild, category);
-    await addTextChannel(client.intlGet(guild.id, 'channelNameActivity'), 'activity', client, guild, category);
-    await addTextChannel(client.intlGet(guild.id, 'channelNameTrackers'), 'trackers', client, guild, category);
+    if (!category) {
+        client.log(client.intlGet(null, 'errorCap'),
+            client.intlGet(null, 'couldNotCreateCategory', { name: 'rustplusplus' }), 'error');
+        return;
+    }
+
+    /* Canonical channel order, [language key, channelId key, permissionWrite] */
+    const channels = [
+        [client.intlGet(guild.id, 'channelNameInformation'), 'information', false],
+        [client.intlGet(guild.id, 'channelNameServers'), 'servers', false],
+        [client.intlGet(guild.id, 'channelNameSettings'), 'settings', false],
+        [client.intlGet(guild.id, 'channelNameCommands'), 'commands', true],
+        [client.intlGet(guild.id, 'channelNameEvents'), 'events', false],
+        [client.intlGet(guild.id, 'channelNameTeamchat'), 'teamchat', true],
+        [client.intlGet(guild.id, 'channelNameSwitches'), 'switches', false],
+        [client.intlGet(guild.id, 'channelNameSwitchGroups'), 'switchGroups', false],
+        [client.intlGet(guild.id, 'channelNameAlarms'), 'alarms', false],
+        [client.intlGet(guild.id, 'channelNameStorageMonitors'), 'storageMonitors', false],
+        [client.intlGet(guild.id, 'channelNameActivity'), 'activity', false],
+        [client.intlGet(guild.id, 'channelNameTrackers'), 'trackers', false]];
+
+    for (const [name, idName, permissionWrite] of channels) {
+        await addTextChannel(name, idName, client, guild, category, permissionWrite);
+    }
+
+    await reorderChannels(client, guild, category, channels.map(e => e[1]));
 };
 
 async function addTextChannel(name, idName, client, guild, parent, permissionWrite = false) {
@@ -45,22 +60,34 @@ async function addTextChannel(name, idName, client, guild, parent, permissionWri
         channel = DiscordTools.getTextChannelById(guild.id, instance.channelId[idName]);
     }
     if (channel === undefined) {
+        /* The stored channel id is stale. Adopt an already existing channel with the expected
+           name to avoid creating duplicates, preferring channels inside the category. */
+        const usedIds = Object.values(instance.channelId);
+        const candidates = guild.channels.cache.filter(c =>
+            c.type === Discord.ChannelType.GuildText &&
+            c.name.toLowerCase() === name.toLowerCase().replace(/\s+/g, '-') &&
+            !usedIds.includes(c.id));
+        channel = candidates.find(c => c.parentId === parent.id) ?? candidates.first();
+    }
+    if (channel === undefined) {
         channel = await DiscordTools.addTextChannel(guild.id, name);
-        instance.channelId[idName] = channel.id;
-        client.setInstance(guild.id, instance);
 
-        try {
-            channel.setParent(parent.id);
-        }
-        catch (e) {
+        if (channel === undefined) {
             client.log(client.intlGet(null, 'errorCap'),
-                client.intlGet(null, 'couldNotSetParent', { channelId: channel.id }), 'error');
+                client.intlGet(null, 'couldNotCreateTextChannel', { name: name }), 'error');
+            return;
         }
     }
 
-    if (instance.firstTime) {
+    if (instance.channelId[idName] !== channel.id) {
+        instance.channelId[idName] = channel.id;
+        client.setInstance(guild.id, instance);
+    }
+
+    /* Make sure the channel is grouped under the rustplusplus category. */
+    if (channel.parentId !== parent.id) {
         try {
-            channel.setParent(parent.id);
+            channel = await channel.setParent(parent.id);
         }
         catch (e) {
             client.log(client.intlGet(null, 'errorCap'),
@@ -82,4 +109,35 @@ async function addTextChannel(name, idName, client, guild, parent, permissionWri
     //channel.setName(name);
 
     channel.lockPermissions();
+}
+
+async function reorderChannels(client, guild, category, idNamesInOrder) {
+    const instance = client.getInstance(guild.id);
+
+    /* Collect the channels that live inside the category, in canonical order. */
+    const channels = [];
+    for (const idName of idNamesInOrder) {
+        if (instance.channelId[idName] === null) continue;
+
+        const channel = DiscordTools.getTextChannelById(guild.id, instance.channelId[idName]);
+        if (!channel || channel.parentId !== category.id) continue;
+
+        channels.push(channel);
+    }
+    if (channels.length === 0) return;
+
+    /* Only reorder when the current order differs from the canonical order. */
+    const currentOrder = channels.slice().sort((a, b) => a.rawPosition - b.rawPosition);
+    if (channels.every((channel, index) => channel.id === currentOrder[index].id)) return;
+
+    try {
+        await guild.channels.setPositions(channels.map((channel, index) => ({
+            channel: channel.id,
+            position: index
+        })));
+    }
+    catch (e) {
+        client.log(client.intlGet(null, 'errorCap'),
+            client.intlGet(null, 'couldNotReorderChannels', { guildId: guild.id }), 'error');
+    }
 }

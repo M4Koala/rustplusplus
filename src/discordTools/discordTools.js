@@ -92,7 +92,8 @@ module.exports = {
         if (guild) {
             let channel = undefined;
             try {
-                channel = guild.channels.cache.find(c => c.name === name);
+                channel = guild.channels.cache.find(c =>
+                    c.type === Discord.ChannelType.GuildText && c.name === name);
             }
             catch (e) {
                 Client.client.log(Client.client.intlGet(null, 'errorCap'),
@@ -132,7 +133,8 @@ module.exports = {
         if (guild) {
             let category = undefined;
             try {
-                category = guild.channels.cache.find(c => c.name === name);
+                category = guild.channels.cache.find(c =>
+                    c.type === Discord.ChannelType.GuildCategory && c.name === name);
             }
             catch (e) {
                 Client.client.log(Client.client.intlGet(null, 'errorCap'),

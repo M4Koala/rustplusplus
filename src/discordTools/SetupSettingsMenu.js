@@ -37,7 +37,21 @@ module.exports = async (client, guild, forced = false) => {
         return;
     }
 
-    if (instance.firstTime || forced) {
+    let shouldPopulate = instance.firstTime || forced;
+
+    if (!shouldPopulate) {
+        /* Repopulate automatically when the settings channel is empty, e.g. when the channel
+           was recreated or adopted after the original channel was lost. */
+        try {
+            const messages = await channel.messages.fetch({ limit: 1 });
+            if (messages.size === 0) shouldPopulate = true;
+        }
+        catch (e) {
+            /* Ignore */
+        }
+    }
+
+    if (shouldPopulate) {
         await DiscordTools.clearTextChannel(guild.id, instance.channelId.settings, 100);
 
         await setupGeneralSettings(client, guild.id, channel);
