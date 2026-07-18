@@ -199,7 +199,7 @@ module.exports = {
             }
             catch (e) {
                 Client.client.log(Client.client.intlGet(null, 'errorCap'),
-                    Client.client.intlGet(null, 'couldNotCreateCategory', { name: name }), 'error');
+                    Client.client.intlGet(null, 'couldNotCreateCategory', { name: name }) + ` (${e})`, 'error');
             }
         }
         return undefined;
@@ -235,7 +235,7 @@ module.exports = {
             }
             catch (e) {
                 Client.client.log(Client.client.intlGet(null, 'errorCap'),
-                    Client.client.intlGet(null, 'couldNotCreateTextChannel', { name: name }), 'error');
+                    Client.client.intlGet(null, 'couldNotCreateTextChannel', { name: name }) + ` (${e})`, 'error');
             }
         }
         return undefined;
