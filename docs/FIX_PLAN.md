@@ -173,3 +173,80 @@ behaviour is preserved. All item-name consumers benefit (`/market`, `/craft`, `/
 
 Verification for each step: `npm test` (tsc --noEmit) + targeted node smoke tests where
 feasible (pure functions such as the item search).
+
+---
+
+# Round 2 — follow-ups and new features
+
+## Follow-up on Problem 4 (item search)
+Verified via git history: the two fragment items only entered `items.json` on **2025-11-12**
+(upstream PR #500). Deployments older than that could not find them by name, shortname *or*
+item ID because the item simply did not exist in the bot's database. Additionally, searching
+by **shortname** never worked at all (the search only matched display names) — fixed:
+exact display-name/shortname matches now short-circuit before the fuzzy stages.
+
+## Follow-up on Problem 2 (wipe flow)
+* The reconnect timer now reads the current server entry (playerToken!) from the instance
+  file at fire time, so re-pairing during an outage (post-wipe) heals the loop automatically.
+* An automatic reconnect that gets **explicitly rejected** by the server (invalid
+  playerToken) aborts and reports "connection invalid" like upstream; only timeouts/flaky
+  responses keep retrying.
+* Verified cleanup on server switch: the switches / switch-groups / storage-monitors
+  channels are cleared on CONNECT; the information channel edits its messages in place.
+  Old-server **alarms** stay listed on purpose (FCM alarms work for non-connected servers) —
+  they disappear when the old server card is deleted (one click on the trash button). On the
+  *same* server after a forced wipe, dead devices show as unreachable and can be removed
+  with the "delete unreachable devices" button.
+
+## Follow-up on Problem 3 (outage speed/correctness)
+* Offline is announced **immediately** when Battlemetrics confirms the server is down
+  (real outage/restart) — the grace period only applies when Battlemetrics still reports
+  online (connection-side issue) or has no data.
+* Online is announced the moment the websocket reconnects, **before** the potentially slow
+  map download, to be as early as possible on wipe-day restarts. Reconnect attempts run
+  every 15 s (`RPP_RECONNECT_INTERVAL` to lower it further).
+
+## New: Deep Sea event tracking
+Detected via the floating-city vendor vending-machine markers (Attire Shop Vendor, Firearms
+Vendor, Fish Exchange Vending Machine, ...; ≥3 distinct official names required, location =
+marker centroid). Notification settings for appeared / closing soon / despawned; warnings at
+30 and 10 minutes before the ~3 h lifetime ends (timers stop if it despawns early and
+survive reconnects); `!deepsea` command (location + time till close, or time since close +
+expected 60–150 min respawn window); integrated into `!events` and the information-channel
+event embed. New settings entries appear after `/reset settings` on existing setups.
+
+---
+
+# Planned (not implemented): phone call when a smart alarm triggers
+
+**Goal:** registered phone numbers get an actual call (ringing phone, TTS message) when a
+smart alarm fires — for raids that happen while asleep/away from Discord.
+
+**Provider options**
+1. **Twilio Programmable Voice** *(recommended)* — bot POSTs to the Twilio REST API (axios,
+   already a dependency; no inbound webserver needed when TwiML is passed inline). Costs:
+   ~$1–1.5/month for a number + per-minute rates; trial credit works with verified numbers.
+   Also offers SMS as a cheap fallback channel.
+2. Vonage / Plivo / MessageBird — same architecture, different pricing/coverage.
+3. **Pushover critical push** *(cheap alternative or addition)* — "Emergency"-priority push
+   notifications repeat until acknowledged and bypass mute/do-not-disturb; one-time $5 app,
+   no per-event cost. Not a call, but covers the "wake me up" need with less setup.
+
+**Design sketch**
+* Config via env: `RPP_CALL_PROVIDER`, `RPP_TWILIO_ACCOUNT_SID`, `RPP_TWILIO_AUTH_TOKEN`,
+  `RPP_TWILIO_FROM_NUMBER`.
+* New `/phone` slash command: `add <E.164 number>` / `remove` / `show` / `test` — one number
+  per Discord user, stored in the (gitignored) per-guild credentials file, masked in logs,
+  admin rules like `/credentials`.
+* Per-alarm **call toggle** (like the @everyone flag) + a global on/off general setting.
+* Trigger points: `smartAlarmHandler` (connected server) and the FCM alarm path
+  (non-connected servers, when fcmAlarmNotificationEnabled).
+* Call content: TTS "<server>: <alarm name> — <alarm message>", repeated twice.
+* **Storm protection:** per-number cooldown (e.g. one call per 5 min; alarms within the
+  window are batched into the next call), optional quiet hours.
+
+**Open questions before implementing**
+1. Twilio (real call, small monthly cost) vs Pushover-style critical push (no call, ~free)?
+   Both?
+2. Call every registered number on any triggering alarm, or per-alarm number selection?
+3. Quiet hours / cooldown length preferences?
