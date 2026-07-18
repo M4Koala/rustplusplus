@@ -216,7 +216,20 @@ function isValidUrl(url) {
     return false;
 }
 
+const pairingServerQueue = new Object();
+
 async function pairingServer(client, guild, title, message, body) {
+    /* FCM pairing notifications can arrive duplicated or in rapid succession. Serialize the
+       handling per guild, otherwise parallel handlers both fail to find an existing server
+       message and post duplicate server cards. */
+    const previous = pairingServerQueue[guild.id] ?? Promise.resolve();
+    const current = previous.then(() => pairingServerHandler(client, guild, title, message, body))
+        .catch(e => client.log(client.intlGet(null, 'errorCap'), `pairingServer: ${e}`, 'error'));
+    pairingServerQueue[guild.id] = current;
+    return current;
+}
+
+async function pairingServerHandler(client, guild, title, message, body) {
     const instance = client.getInstance(guild.id);
     const serverId = `${body.ip}-${body.port}`;
     const server = instance.serverList[serverId];

@@ -20,6 +20,7 @@
 
 const Constants = require('../util/constants.js');
 const DiscordMessages = require('../discordTools/discordMessages.js');
+const DiscordTools = require('../discordTools/discordTools.js');
 const Info = require('../structures/Info');
 const InGameChatHandler = require('../handlers/inGameChatHandler.js');
 const Map = require('../structures/Map');
@@ -130,6 +131,19 @@ module.exports = {
         }
         else if (stash) {
             client.discardRustplusStash(guildId);
+        }
+
+        /* On a fresh wipe (connected to another server than last time, or a map wipe was
+           detected) throw out the previous wipe's history from the events, teamchat and
+           activity channels. */
+        if (wipeDetected || (rustplus.isNewConnection && instance.lastConnectedServerId !== serverId)) {
+            await DiscordTools.replaceTextChannel(guildId, 'events');
+            await DiscordTools.replaceTextChannel(guildId, 'teamchat');
+            await DiscordTools.replaceTextChannel(guildId, 'activity');
+        }
+        if (instance.lastConnectedServerId !== serverId) {
+            instance.lastConnectedServerId = serverId;
+            client.setInstance(guildId, instance);
         }
 
         await DiscordMessages.sendServerMessage(guildId, serverId, null);

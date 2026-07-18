@@ -54,6 +54,7 @@ module.exports = (client, guild) => {
                 battlemetricsPlayers: null
             },
             activeServer: null,
+            lastConnectedServerId: null,
             serverList: {},
             serverListLite: {},
             trackers: {},
@@ -166,6 +167,7 @@ module.exports = (client, guild) => {
         }
 
         if (!instance.hasOwnProperty('activeServer')) instance.activeServer = null;
+        if (!instance.hasOwnProperty('lastConnectedServerId')) instance.lastConnectedServerId = null;
         if (!instance.hasOwnProperty('serverList')) instance.serverList = {};
         if (!instance.hasOwnProperty('serverListLite')) instance.serverListLite = {};
         if (!instance.hasOwnProperty('trackers')) instance.trackers = {};

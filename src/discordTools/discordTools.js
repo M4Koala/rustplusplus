@@ -255,6 +255,33 @@ module.exports = {
         return true;
     },
 
+    replaceTextChannel: async function (guildId, idName) {
+        /* Replaces a text channel with an empty clone (name/permissions/position preserved) to
+           wipe its entire history instantly, deleting messages one by one would take hours for
+           months of history. Returns the new channel, or the old one if cloning failed. */
+        const instance = Client.client.getInstance(guildId);
+        const channel = module.exports.getTextChannelById(guildId, instance.channelId[idName]);
+        if (!channel) return undefined;
+
+        try {
+            const clone = await channel.clone();
+            await clone.setPosition(channel.position);
+
+            instance.channelId[idName] = clone.id;
+            Client.client.setInstance(guildId, instance);
+
+            await channel.delete();
+            return clone;
+        }
+        catch (e) {
+            Client.client.log(Client.client.intlGet(null, 'errorCap'), `replaceTextChannel: ${e}`, 'error');
+
+            /* Fall back to clearing the most recent messages. */
+            await module.exports.clearTextChannel(guildId, instance.channelId[idName], 100);
+            return channel;
+        }
+    },
+
     clearTextChannel: async function (guildId, channelId, numberOfMessages) {
         const channel = module.exports.getTextChannelById(guildId, channelId);
 

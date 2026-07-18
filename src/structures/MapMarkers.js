@@ -272,6 +272,25 @@ class MapMarkers {
         this.updateGenericRadiuses(mapMarkers);
         this.updateTravelingVendors(mapMarkers);
         this.updateDeepSea();
+
+        if (this.rustplus.isFirstPoll) this.logMarkerDiagnostics(mapMarkers);
+    }
+
+    logMarkerDiagnostics(mapMarkers) {
+        /* Log the named vending machine markers and markers of unknown types once per
+           connection, to be able to diagnose event detection (e.g. Deep Sea vendor names). */
+        const vendingMachineNames = this.vendingMachines.filter(e => e.name && e.name !== '')
+            .map(e => `'${e.name}'`).join(', ');
+        this.rustplus.log(this.client.intlGet(null, 'infoCap'),
+            `Vending machine marker names: ${vendingMachineNames === '' ? '-' : vendingMachineNames}`);
+
+        const knownTypes = Object.values(this.types);
+        const unknownMarkers = mapMarkers.markers.filter(e => !knownTypes.includes(e.type));
+        if (unknownMarkers.length !== 0) {
+            this.rustplus.log(this.client.intlGet(null, 'infoCap'),
+                `Unknown map marker types: ` +
+                unknownMarkers.map(e => `type=${e.type} name='${e.name ?? ''}'`).join(', '));
+        }
     }
 
     updatePlayers(mapMarkers) {
