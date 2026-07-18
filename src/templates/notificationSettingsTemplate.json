@@ -82,5 +82,23 @@
         "discord": true,
         "inGame": false,
         "voice": true
+    },
+    "deepSeaDetectedSetting": {
+        "image": "vending_machine_logo.png",
+        "discord": true,
+        "inGame": true,
+        "voice": true
+    },
+    "deepSeaClosingSoonSetting": {
+        "image": "vending_machine_logo.png",
+        "discord": true,
+        "inGame": true,
+        "voice": true
+    },
+    "deepSeaLeftSetting": {
+        "image": "vending_machine_logo.png",
+        "discord": true,
+        "inGame": false,
+        "voice": true
     }
 }

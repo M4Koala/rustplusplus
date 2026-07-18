@@ -55,6 +55,12 @@ class MapMarkers {
         this.crateSmallOilRigLocation = null;
         this.crateLargeOilRigTimer = null;
         this.crateLargeOilRigLocation = null;
+        this.deepSeaWarningTimers = [];
+
+        /* Deep Sea event */
+        this.deepSeaActive = false;
+        this.deepSeaLocation = null;
+        this.deepSeaActivatedAt = null;
 
         /* Event dates */
         this.timeSinceCargoShipWasOut = null;
@@ -64,6 +70,7 @@ class MapMarkers {
         this.timeSincePatrolHelicopterWasOnMap = null;
         this.timeSincePatrolHelicopterWasDestroyed = null;
         this.timeSinceTravelingVendorWasOnMap = null;
+        this.timeSinceDeepSeaWasOut = null;
 
         /* Event location */
         this.patrolHelicopterDestroyedLocation = null;
@@ -264,6 +271,7 @@ class MapMarkers {
         this.updateVendingMachines(mapMarkers);
         this.updateGenericRadiuses(mapMarkers);
         this.updateTravelingVendors(mapMarkers);
+        this.updateDeepSea();
     }
 
     updatePlayers(mapMarkers) {
@@ -781,6 +789,79 @@ class MapMarkers {
         }
     }
 
+    updateDeepSea() {
+        /* The Deep Sea (floating city) event is detected via its vendor vending machine
+           markers, they show up on the map right before the event spawns in-game. Require a
+           couple of distinct vendor names so player shops cannot fake the event. */
+        const vendorMarkers = this.vendingMachines.filter(e => e.name && Constants.DEEP_SEA_VENDOR_NAMES
+            .some(vendorName => e.name.toLowerCase().includes(vendorName.toLowerCase())));
+
+        const distinctNames = new Set();
+        for (const marker of vendorMarkers) {
+            for (const vendorName of Constants.DEEP_SEA_VENDOR_NAMES) {
+                if (marker.name.toLowerCase().includes(vendorName.toLowerCase())) distinctNames.add(vendorName);
+            }
+        }
+        const isActive = distinctNames.size >= Constants.DEEP_SEA_MIN_DISTINCT_VENDORS;
+
+        if (isActive) {
+            /* Location of the event, the centroid of the vendor markers. */
+            const x = vendorMarkers.reduce((sum, e) => sum + e.x, 0) / vendorMarkers.length;
+            const y = vendorMarkers.reduce((sum, e) => sum + e.y, 0) / vendorMarkers.length;
+            this.deepSeaLocation = Map.getPos(x, y, this.rustplus.info.correctedMapSize, this.rustplus);
+        }
+
+        if (isActive && !this.deepSeaActive) {
+            this.deepSeaActive = true;
+
+            this.rustplus.sendEvent(
+                this.rustplus.notificationSettings.deepSeaDetectedSetting,
+                this.client.intlGet(this.rustplus.guildId, 'deepSeaAppearedAt', {
+                    location: this.deepSeaLocation.string
+                }),
+                'deepsea',
+                Constants.COLOR_DEEP_SEA_APPEARED,
+                this.rustplus.isFirstPoll);
+
+            if (!this.rustplus.isFirstPoll) {
+                /* Only when the spawn was witnessed is the remaining event time known. */
+                this.deepSeaActivatedAt = new Date();
+
+                for (const warningTimeMs of Constants.DEEP_SEA_WARNING_TIMES_MS) {
+                    const timer = new Timer.timer(
+                        this.notifyDeepSeaClosingSoon.bind(this),
+                        Constants.DEEP_SEA_DURATION_MS - warningTimeMs,
+                        warningTimeMs);
+                    timer.start();
+                    this.deepSeaWarningTimers.push(timer);
+                }
+            }
+        }
+        else if (!isActive && this.deepSeaActive) {
+            this.deepSeaActive = false;
+
+            this.rustplus.sendEvent(
+                this.rustplus.notificationSettings.deepSeaLeftSetting,
+                this.client.intlGet(this.rustplus.guildId, 'deepSeaLeftMap', {
+                    location: this.deepSeaLocation !== null ? this.deepSeaLocation.string : '-'
+                }),
+                'deepsea',
+                Constants.COLOR_DEEP_SEA_LEFT_MAP);
+
+            this.timeSinceDeepSeaWasOut = new Date();
+            this.deepSeaLocation = null;
+            this.deepSeaActivatedAt = null;
+            this.stopDeepSeaWarningTimers();
+        }
+    }
+
+    stopDeepSeaWarningTimers() {
+        for (const timer of this.deepSeaWarningTimers) {
+            timer.stop();
+        }
+        this.deepSeaWarningTimers = [];
+    }
+
 
 
     /* Timer notification functions */
@@ -821,6 +902,21 @@ class MapMarkers {
         this.crateSmallOilRigTimer.stop();
         this.crateSmallOilRigTimer = null;
         this.crateSmallOilRigLocation = null;
+    }
+
+    notifyDeepSeaClosingSoon(args) {
+        const warningTimeMs = args[0];
+
+        if (!this.deepSeaActive) return;
+
+        this.rustplus.sendEvent(
+            this.rustplus.notificationSettings.deepSeaClosingSoonSetting,
+            this.client.intlGet(this.rustplus.guildId, 'deepSeaClosesIn', {
+                location: this.deepSeaLocation !== null ? this.deepSeaLocation.string : '-',
+                time: `${Math.round(warningTimeMs / (60 * 1000))} min`
+            }),
+            'deepsea',
+            Constants.COLOR_DEEP_SEA_CLOSING_SOON);
     }
 
     notifyCrateLargeOilRigOpen(args) {
@@ -878,6 +974,12 @@ class MapMarkers {
             this.crateLargeOilRigTimer.stop();
         }
         this.crateLargeOilRigTimer = null;
+        this.stopDeepSeaWarningTimers();
+
+        this.deepSeaActive = false;
+        this.deepSeaLocation = null;
+        this.deepSeaActivatedAt = null;
+        this.timeSinceDeepSeaWasOut = null;
 
         this.timeSinceCargoShipWasOut = null;
         this.timeSinceCH47WasOut = null;

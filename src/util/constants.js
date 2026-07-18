@@ -61,6 +61,22 @@ module.exports = {
     MAX_STATE_STASH_AGE_MS: 2 * 60 * 60 * 1000, /* Discard stashed state after 2 hours offline. */
     MAX_TIME_LEARNING_GAP_SECONDS: 15 * 60, /* Max offline gap to compensate in-game time learning for. */
 
+    /* Deep Sea event. Detected via the floating city vendor vending machine map markers. */
+    DEEP_SEA_VENDOR_NAMES: [
+        'Attire Shop Vendor',
+        'Boat Supplies Vendor',
+        'Farming Supplies Vendor',
+        'Firearms Vendor',
+        'Fish Exchange Vending Machine',
+        'Fishing and Diving Supplies Vendor',
+        'Food Market Vendor',
+        'Medical Supplies Vendor',
+        'Trap Vendor'],
+    DEEP_SEA_MIN_DISTINCT_VENDORS: 3, /* Distinct vendor names required to count as Deep Sea event. */
+    DEEP_SEA_DURATION_MS: 3 * 60 * 60 * 1000, /* The Deep Sea event stays active for 3 hours. */
+    DEEP_SEA_RESPAWN_MAX_MS: 150 * 60 * 1000, /* Despawns for roughly 60-150 min. */
+    DEEP_SEA_WARNING_TIMES_MS: [30 * 60 * 1000, 10 * 60 * 1000], /* Warnings before the event closes. */
+
     /* Other constants */
     PATROL_HELI_DOWNED_RADIUS: 400,
     OIL_RIG_CHINOOK_47_MAX_SPAWN_DISTANCE: 550,
@@ -90,6 +106,9 @@ module.exports = {
     COLOR_CARGO_TRACER: '#FF0000',
     COLOR_CHINOOK47_ENTERS_MAP: '#1E90FF',
     COLOR_CHINOOK47_LOCATED: '#00FF00',
+    COLOR_DEEP_SEA_APPEARED: '#00CED1',
+    COLOR_DEEP_SEA_CLOSING_SOON: '#FF8C00',
+    COLOR_DEEP_SEA_LEFT_MAP: '#20B2AA',
     COLOR_DEFAULT: '#CE412B',
     COLOR_GREY: '#606060',
     COLOR_HEAVY_SCIENTISTS_CALLED_LARGE: '#DDA0DD',
