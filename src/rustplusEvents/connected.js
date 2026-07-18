@@ -38,6 +38,26 @@ module.exports = {
 
         rustplus.uptimeServer = new Date();
 
+        /* Handle the reconnection bookkeeping immediately at socket connect, so that the
+           online announcement is as fast as possible (before the slow map request). Important
+           to be among the first to join after a wipe/server restart. */
+        if (client.rustplusReconnecting[guildId]) {
+            client.rustplusReconnecting[guildId] = false;
+
+            if (client.rustplusReconnectTimers[guildId]) {
+                clearTimeout(client.rustplusReconnectTimers[guildId]);
+                client.rustplusReconnectTimers[guildId] = null;
+            }
+
+            /* Only announce online when offline was announced, short connection blips within
+               the grace period stay silent. */
+            if (client.rustplusOfflineAnnounced[guildId]) {
+                await DiscordMessages.sendServerChangeStateMessage(guildId, serverId, 0);
+            }
+        }
+        client.rustplusOfflineAnnounced[guildId] = false;
+        client.rustplusFirstDisconnectTime[guildId] = null;
+
         /* Start the token replenish task */
         rustplus.tokensReplenishTaskId = setInterval(rustplus.replenishTokens.bind(rustplus), 1000);
 
@@ -47,10 +67,12 @@ module.exports = {
             rustplus.log(client.intlGet(null, 'errorCap'),
                 client.intlGet(null, 'somethingWrongWithConnection'), 'error');
 
-            /* During an automatic reconnect, keep the reconnect loop alive instead of giving
-               up, the server might just still be flaky. Only actively selected connections
-               (CONNECT button) are aborted, since their tokens might be invalid. */
-            if (!rustplus.isNewConnection && client.activeRustplusInstances[guildId]) {
+            /* During an automatic reconnect, keep the reconnect loop alive unless the server
+               explicitly rejected the request (e.g. invalid playerToken after a full wipe),
+               the server might just still be flaky or restarting. Actively selected
+               connections (CONNECT button) always abort so a bad server setup is reported. */
+            const isRejected = (map !== undefined && typeof map === 'object' && map.hasOwnProperty('error'));
+            if (!rustplus.isNewConnection && client.activeRustplusInstances[guildId] && !isRejected) {
                 rustplus.disconnect();
                 return;
             }
@@ -95,23 +117,6 @@ module.exports = {
             await rustplus.map.writeMap(false, true);
             await DiscordMessages.sendInformationMapMessage(guildId);
         }
-
-        if (client.rustplusReconnecting[guildId]) {
-            client.rustplusReconnecting[guildId] = false;
-
-            if (client.rustplusReconnectTimers[guildId]) {
-                clearTimeout(client.rustplusReconnectTimers[guildId]);
-                client.rustplusReconnectTimers[guildId] = null;
-            }
-
-            /* Only announce online when offline was announced, short connection blips within
-               the grace period stay silent. */
-            if (client.rustplusOfflineAnnounced[guildId]) {
-                await DiscordMessages.sendServerChangeStateMessage(guildId, serverId, 0);
-            }
-        }
-        client.rustplusOfflineAnnounced[guildId] = false;
-        client.rustplusFirstDisconnectTime[guildId] = null;
 
         /* Restore the state stashed at the previous unexpected disconnect, so that AFK-timers,
            locked crate/cargo timers, custom timers and in-game time tracking survive. */

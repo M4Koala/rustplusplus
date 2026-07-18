@@ -90,17 +90,21 @@ module.exports = {
                 await DiscordMessages.sendServerMessage(guildId, serverId, 2);
             }
 
-            /* Announce offline once the connection stayed down past the grace period. */
+            /* Announce offline immediately when battlemetrics confirms the server is down
+               (real outage/restart), otherwise wait out the grace period so that pure
+               connection blips stay silent. Battlemetrics data refreshes every 60 seconds. */
             const firstDisconnectTime = client.rustplusFirstDisconnectTime[guildId] ?? Date.now();
-            if (!client.rustplusOfflineAnnounced[guildId] &&
-                (Date.now() - firstDisconnectTime) >= Config.general.offlineGracePeriodMs) {
-                client.rustplusOfflineAnnounced[guildId] = true;
-
-                /* Use battlemetrics as a second opinion on the server status. If the server is
-                   reported as online, the rust+ connection is broken rather than the server. */
-                const state = (module.exports.isServerOnlineBattlemetrics(client, guildId, serverId) === true) ?
-                    2 : 1;
-                await DiscordMessages.sendServerChangeStateMessage(guildId, serverId, state);
+            if (!client.rustplusOfflineAnnounced[guildId]) {
+                const bmOnline = module.exports.isServerOnlineBattlemetrics(client, guildId, serverId);
+                if (bmOnline === false) {
+                    client.rustplusOfflineAnnounced[guildId] = true;
+                    await DiscordMessages.sendServerChangeStateMessage(guildId, serverId, 1);
+                }
+                else if ((Date.now() - firstDisconnectTime) >= Config.general.offlineGracePeriodMs) {
+                    client.rustplusOfflineAnnounced[guildId] = true;
+                    await DiscordMessages.sendServerChangeStateMessage(guildId, serverId,
+                        (bmOnline === true) ? 2 : 1);
+                }
             }
 
             rustplus.log(client.intlGet(null, 'reconnectingCap'), client.intlGet(null, 'reconnectingToServer'));
@@ -112,15 +116,18 @@ module.exports = {
                 client.rustplusReconnectTimers[guildId] = null;
             }
 
-            client.rustplusReconnectTimers[guildId] = setTimeout(
-                client.createRustplusInstance.bind(client),
-                Config.general.reconnectIntervalMs,
-                guildId,
-                rustplus.server,
-                rustplus.port,
-                rustplus.playerId,
-                rustplus.playerToken
-            );
+            client.rustplusReconnectTimers[guildId] = setTimeout(() => {
+                client.rustplusReconnectTimers[guildId] = null;
+
+                /* Read the current server data at reconnect time, the playerToken might have
+                   been refreshed by a new pairing while offline (e.g. after a wipe). */
+                const currentInstance = client.getInstance(guildId);
+                if (!currentInstance || !currentInstance.serverList.hasOwnProperty(serverId)) return;
+
+                const server = currentInstance.serverList[serverId];
+                client.createRustplusInstance(
+                    guildId, server.serverIp, server.appPort, server.steamId, server.playerToken);
+            }, Config.general.reconnectIntervalMs);
         }
     },
 
