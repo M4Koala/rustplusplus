@@ -59,6 +59,15 @@ class Items {
     }
 
     getClosestItemIdByName(name) {
+        const search = name.toLowerCase().trim();
+
+        /* Search by exact display name or shortname first, e.g. 'basicblueprintfragment'. */
+        for (const [id, item] of Object.entries(this.items)) {
+            if (item.name.toLowerCase() === search || item.shortname.toLowerCase() === search) {
+                return id;
+            }
+        }
+
         const closestString = Utils.findClosestString(name, this.itemNames);
         if (closestString !== null) {
             const id = Object.entries(this.items).find(([key, value]) => value.name === closestString);
