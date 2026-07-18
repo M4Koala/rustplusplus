@@ -994,20 +994,29 @@ module.exports = {
         const credentials = InstanceUtils.readCredentialsFile(guildId);
         let names = '';
         let steamIds = '';
-        let hoster = '';
+        let expireDates = '';
 
         for (const credential in credentials) {
             if (credential === 'hoster') continue;
 
             const user = await DiscordTools.getUserById(guildId, credentials[credential].discord_user_id);
-            names += `${user.user.username}\n`;
+            const hosterMark = credential === credentials.hoster ? `${Constants.LEADER_EMOJI} ` : '';
+            names += `${hosterMark}${user ? user.user.username : credentials[credential].discord_user_id}\n`;
             steamIds += `${credential}\n`;
-            hoster += `${credential === credentials.hoster ? `${Constants.LEADER_EMOJI}\n` : '\u200B\n'}`;
+
+            const expireTimestamp = InstanceUtils.getCredentialExpireTimestamp(credentials[credential]);
+            if (expireTimestamp !== null) {
+                const expiredMark = (Math.floor(Date.now() / 1000) >= expireTimestamp) ? '\u26A0\uFE0F ' : '';
+                expireDates += `${expiredMark}<t:${expireTimestamp}:R>\n`;
+            }
+            else {
+                expireDates += `${Client.client.intlGet(guildId, 'unknown')}\n`;
+            }
         }
 
         if (names === '') names = Client.client.intlGet(guildId, 'empty');
         if (steamIds === '') steamIds = Client.client.intlGet(guildId, 'empty');
-        if (hoster === '') hoster = Client.client.intlGet(guildId, 'empty');
+        if (expireDates === '') expireDates = Client.client.intlGet(guildId, 'empty');
 
         return module.exports.getEmbed({
             color: Constants.COLOR_DEFAULT,
@@ -1015,7 +1024,7 @@ module.exports = {
             fields: [
                 { name: Client.client.intlGet(guildId, 'name'), value: names, inline: true },
                 { name: 'SteamID', value: steamIds, inline: true },
-                { name: Client.client.intlGet(guildId, 'hoster'), value: hoster, inline: true }]
+                { name: Client.client.intlGet(guildId, 'credentialsExpire'), value: expireDates, inline: true }]
         });
     },
 

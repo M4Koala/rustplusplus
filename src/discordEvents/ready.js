@@ -23,6 +23,7 @@ const Path = require('path');
 
 const BattlemetricsHandler = require('../handlers/battlemetricsHandler.js');
 const Config = require('../../config');
+const CredentialsExpiryHandler = require('../handlers/credentialsExpiryHandler.js');
 
 module.exports = {
     name: 'ready',
@@ -76,6 +77,9 @@ module.exports = {
         await client.updateBattlemetricsInstances();
         BattlemetricsHandler.handler(client, true);
         client.battlemetricsIntervalId = setInterval(BattlemetricsHandler.handler, 60000, client, false);
+
+        CredentialsExpiryHandler.handler(client);
+        client.credentialsExpiryIntervalId = setInterval(CredentialsExpiryHandler.handler, 60 * 60 * 1000, client);
 
         client.createRustplusInstancesFromConfig();
     },

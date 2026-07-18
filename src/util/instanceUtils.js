@@ -61,4 +61,29 @@ module.exports = {
         const path = Path.join(__dirname, '..', '..', 'credentials', `${guildId}.json`);
         Fs.writeFileSync(path, JSON.stringify(credentials, null, 2));
     },
+
+    parseDateToUnixTimestamp: function (value) {
+        /* Parses a date of unknown format (unix seconds, unix milliseconds or a Date-parseable
+           string) into unix seconds. Returns null if the date could not be parsed. */
+        if (value === null || value === undefined) return null;
+        const str = `${value}`.trim();
+        if (str === '') return null;
+
+        if (/^\d+$/.test(str)) {
+            const num = parseInt(str);
+            /* Values above 100000000000 are unix milliseconds (year >5138 in seconds). */
+            return num > 100000000000 ? Math.floor(num / 1000) : num;
+        }
+
+        const ms = Date.parse(str);
+        if (!isNaN(ms)) return Math.floor(ms / 1000);
+
+        return null;
+    },
+
+    getCredentialExpireTimestamp: function (credential) {
+        /* Returns the expire date of a credential entry as unix seconds, or null if unknown. */
+        if (!credential) return null;
+        return module.exports.parseDateToUnixTimestamp(credential.expire_date);
+    },
 }

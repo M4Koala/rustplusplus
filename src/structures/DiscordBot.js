@@ -70,6 +70,8 @@ class DiscordBot extends Discord.Client {
         this.battlemetricsIntervalId = null;
         this.battlemetricsIntervalCounter = 0;
 
+        this.credentialsExpiryIntervalId = null;
+
         this.voiceLeaveTimeouts = new Object();
 
         this.loadDiscordCommands();
