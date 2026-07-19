@@ -291,6 +291,20 @@ class MapMarkers {
         this.rustplus.log(this.client.intlGet(null, 'infoCap'),
             `Vending machine marker names: ${vendingMachineNames === '' ? '-' : vendingMachineNames}`);
 
+        /* The exact inputs of the Deep Sea detection, to be able to verify it remotely. */
+        const outsideGridCount = this.vendingMachines.filter(e =>
+            Map.isOutsideGridSystem(e.x, e.y, mapSize)).length;
+        const distinctNames = new Set();
+        for (const machine of this.vendingMachines.filter(e => e.name)) {
+            for (const vendorName of Constants.DEEP_SEA_VENDOR_NAMES) {
+                if (machine.name.toLowerCase().includes(vendorName.toLowerCase())) distinctNames.add(vendorName);
+            }
+        }
+        this.rustplus.log(this.client.intlGet(null, 'infoCap'),
+            `Deep Sea detection inputs: ${outsideGridCount} vending machine(s) outside the grid ` +
+            `(>=${Constants.DEEP_SEA_MIN_OUTSIDE_GRID_VENDORS} activates), ${distinctNames.size} distinct known ` +
+            `vendor name(s) (>=${Constants.DEEP_SEA_MIN_DISTINCT_VENDORS} activates), map size ${mapSize}.`);
+
         const knownTypes = Object.values(this.types);
         const unknownMarkers = mapMarkers.markers.filter(e => !knownTypes.includes(e.type));
         if (unknownMarkers.length !== 0) {
