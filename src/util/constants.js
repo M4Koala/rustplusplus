@@ -73,6 +73,7 @@ module.exports = {
         'Medical Supplies Vendor',
         'Trap Vendor'],
     DEEP_SEA_MIN_DISTINCT_VENDORS: 3, /* Distinct vendor names required to count as Deep Sea event. */
+    DEEP_SEA_MIN_OUTSIDE_GRID_VENDORS: 2, /* Vending machines outside the grid required to count as Deep Sea event. */
     DEEP_SEA_DURATION_MS: 3 * 60 * 60 * 1000, /* The Deep Sea event stays active for 3 hours. */
     DEEP_SEA_RESPAWN_MAX_MS: 150 * 60 * 1000, /* Despawns for roughly 60-150 min. */
     DEEP_SEA_WARNING_TIMES_MS: [30 * 60 * 1000, 10 * 60 * 1000], /* Warnings before the event closes. */

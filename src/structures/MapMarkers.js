@@ -284,8 +284,10 @@ class MapMarkers {
         if (this.markerDiagnosticsLogged) return;
         this.markerDiagnosticsLogged = true;
 
+        const mapSize = this.rustplus.info.correctedMapSize;
         const vendingMachineNames = this.vendingMachines.filter(e => e.name && e.name !== '')
-            .map(e => `'${e.name}'`).join(', ');
+            .map(e => `'${e.name}'${Map.isOutsideGridSystem(e.x, e.y, mapSize) ? ' [outside grid]' : ''}`)
+            .join(', ');
         this.rustplus.log(this.client.intlGet(null, 'infoCap'),
             `Vending machine marker names: ${vendingMachineNames === '' ? '-' : vendingMachineNames}`);
 
@@ -358,7 +360,7 @@ class MapMarkers {
 
         /* VendingMachine markers that have left. */
         for (let marker of leftMarkers) {
-            this.vendingMachines = this.vendingMachines.filter(e => e.x !== marker.x) || e.y !== marker.y;
+            this.vendingMachines = this.vendingMachines.filter(e => e.x !== marker.x || e.y !== marker.y);
         }
 
         /* VendingMachine markers that still remains. */
@@ -815,18 +817,30 @@ class MapMarkers {
 
     updateDeepSea() {
         /* The Deep Sea (floating city) event is detected via its vendor vending machine
-           markers, they show up on the map right before the event spawns in-game. Require a
-           couple of distinct vendor names so player shops cannot fake the event. */
-        const vendorMarkers = this.vendingMachines.filter(e => e.name && Constants.DEEP_SEA_VENDOR_NAMES
+           markers, they show up on the map right before the event spawns in-game. Two
+           independent signals, either one activates the event:
+           1. Vendor names — require a couple of distinct official vendor names so player
+              shops cannot fake the event.
+           2. Vending machines located outside the grid system — the floating city spawns
+              beyond the map edge (N/W/S/E side), where player shops cannot exist. This
+              works regardless of what the vendors are called. */
+        const mapSize = this.rustplus.info.correctedMapSize;
+
+        const namedVendorMarkers = this.vendingMachines.filter(e => e.name && Constants.DEEP_SEA_VENDOR_NAMES
             .some(vendorName => e.name.toLowerCase().includes(vendorName.toLowerCase())));
+        const outsideGridMarkers = this.vendingMachines.filter(e =>
+            Map.isOutsideGridSystem(e.x, e.y, mapSize));
 
         const distinctNames = new Set();
-        for (const marker of vendorMarkers) {
+        for (const marker of namedVendorMarkers) {
             for (const vendorName of Constants.DEEP_SEA_VENDOR_NAMES) {
                 if (marker.name.toLowerCase().includes(vendorName.toLowerCase())) distinctNames.add(vendorName);
             }
         }
-        const isActive = distinctNames.size >= Constants.DEEP_SEA_MIN_DISTINCT_VENDORS;
+        const isActive = distinctNames.size >= Constants.DEEP_SEA_MIN_DISTINCT_VENDORS ||
+            outsideGridMarkers.length >= Constants.DEEP_SEA_MIN_OUTSIDE_GRID_VENDORS;
+
+        const vendorMarkers = [...new Set([...namedVendorMarkers, ...outsideGridMarkers])];
 
         if (isActive) {
             /* Location of the event, the centroid of the vendor markers. */
