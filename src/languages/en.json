@@ -123,6 +123,7 @@
     "commandSyntaxDeepSea": "deepsea",
     "commandSyntaxDespawn": "despawn",
     "commandSyntaxEvents": "events",
+    "commandSyntaxGrid": "grid",
     "commandSyntaxHeli": "heli",
     "commandSyntaxLanguage": "language",
     "commandSyntaxLarge": "large",

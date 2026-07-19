@@ -87,6 +87,11 @@ module.exports = {
             commandLowerCase.startsWith(`${prefix}${client.intlGet(guildId, 'commandSyntaxDespawn')}`)) {
             rustplus.sendInGameMessage(rustplus.getCommandDespawn(command));
         }
+        else if (commandLowerCase === `${prefix}${client.intlGet('en', 'commandSyntaxGrid')}` ||
+            commandLowerCase === `${prefix}${client.intlGet(guildId, 'commandSyntaxGrid')}`) {
+            const response = await rustplus.getCommandGrid(callerSteamId);
+            if (response !== null) rustplus.sendInGameMessage(response);
+        }
         else if (commandLowerCase.startsWith(`${prefix}${client.intlGet('en', 'commandSyntaxEvents')}`) ||
             commandLowerCase.startsWith(`${prefix}${client.intlGet(guildId, 'commandSyntaxEvents')}`)) {
             rustplus.sendInGameMessage(rustplus.getCommandEvents(command));

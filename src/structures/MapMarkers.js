@@ -286,7 +286,11 @@ class MapMarkers {
 
         const mapSize = this.rustplus.info.correctedMapSize;
         const vendingMachineNames = this.vendingMachines.filter(e => e.name && e.name !== '')
-            .map(e => `'${e.name}'${Map.isOutsideGridSystem(e.x, e.y, mapSize) ? ' [outside grid]' : ''}`)
+            .map(e => {
+                const grid = Map.getGridPos(e.x, e.y, mapSize);
+                return `'${e.name}' (x=${e.x.toFixed(1)}, y=${e.y.toFixed(1)}, ` +
+                    `${grid !== null ? grid : 'outside grid'})`;
+            })
             .join(', ');
         this.rustplus.log(this.client.intlGet(null, 'infoCap'),
             `Vending machine marker names: ${vendingMachineNames === '' ? '-' : vendingMachineNames}`);

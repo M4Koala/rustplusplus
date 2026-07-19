@@ -2154,6 +2154,26 @@ class RustPlus extends RustPlusLib {
         }
     }
 
+    async getCommandGrid(callerSteamId) {
+        /* Grid calibration helper: reply with the caller's raw world coordinates and the
+           grid cell the bot computes from them, to compare against the in-game map. Stand
+           on a grid border line on the in-game map and the border's world coordinate can
+           be read off directly. */
+        const teamInfo = await this.getTeamInfoAsync();
+        if (await this.isResponseValid(teamInfo)) {
+            TeamHandler.handler(this, Client.client, teamInfo.teamInfo);
+            this.team.updateTeam(teamInfo.teamInfo);
+        }
+
+        const caller = this.team.getPlayer(callerSteamId);
+        if (caller === null) return null;
+
+        const mapSize = this.info.correctedMapSize;
+        const grid = Map.getGridPos(caller.x, caller.y, mapSize);
+        return `x=${caller.x.toFixed(1)}, y=${caller.y.toFixed(1)}, ` +
+            `grid=${grid !== null ? grid : '-'}, mapSize=${mapSize}`;
+    }
+
     async getCommandProx(command, callerSteamId) {
         const caller = this.team.getPlayer(callerSteamId);
         const prefix = this.generalSettings.prefix;

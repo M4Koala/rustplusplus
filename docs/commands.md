@@ -354,8 +354,9 @@ In-Game Command | Description
 [**craft**](commands.md#craft-ingame) | Display the cost to craft an item.
 [**death/deaths**](commands.md#deathdeaths) | Get recent death events.
 [**decay**](commands.md#decay-ingame) | Display the decay time of an item.
-[**deepsea**](commands.md#deepsea) | Get information about the Deep Sea event (Location, time till close, time since last active).
+[**deepsea**](commands.md#deepsea) | Get information about the Deep Sea event (Time till close, time since last active).
 [**events**](commands.md#events) | Get recent events.
+[**grid**](commands.md#grid) | Get your raw world coordinates and the grid cell the bot computes from them (map grid calibration/debugging).
 [**heli**](commands.md#heli) | Get information about Patrol Helicopter (Location, time since last downed, time since last on map).
 [**large**](commands.md#large) | Get information about Large Oil Rig (Time till crate unlocks, time since last trigger).
 [**leader**](commands.md#leader-1) | Give/Take the Team Leadership.
@@ -461,8 +462,16 @@ In-Game Command | Description
 
 ## **deepsea**
 
-> **Get information about the Deep Sea event (Location, time till close, time since last active).**
+> **Get information about the Deep Sea event (Time till close, time since last active).**
 <br>Command: `!deepsea`
+
+
+## **grid**
+
+> **Get your raw world coordinates and the grid cell the bot computes from them.** Useful to
+> calibrate/debug the map grid: stand on a grid border line on the in-game map and the
+> border's world coordinate can be read off directly.
+<br>Command: `!grid`
 
 
 ## **events**
