@@ -48,15 +48,20 @@ module.exports = async (client, guild) => {
             if (category !== undefined) break;
         }
     }
+    let created = false;
     if (category === undefined) {
         category = await DiscordTools.addCategory(guild.id, 'rustplusplus');
+        created = true;
     }
     if (category !== undefined && instance.channelId.category !== category.id) {
         instance.channelId.category = category.id;
         client.setInstance(guild.id, instance);
     }
 
-    if (Config.discord.manageChannelPermissions) {
+    /* Only apply the canonical permission set to a category the bot just created. An
+       adopted/existing category may carry manually configured permissions that must
+       survive a bot restart. */
+    if (created && Config.discord.manageChannelPermissions) {
         const perms = PermissionHandler.getPermissionsReset(client, guild, false);
 
         try {

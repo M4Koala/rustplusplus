@@ -229,9 +229,9 @@ class DiscordBot extends Discord.Client {
                 }
             }
         }
-        else {
-            await PermissionHandler.resetPermissionsAllChannels(this, guild);
-        }
+        /* Existing setups: never touch channel permissions at startup — manually configured
+           overwrites must survive a bot restart. Permissions are only applied when a channel
+           is created, or on explicit user action (/reset discord, /role, /blacklist). */
 
         require('../util/FcmListener')(this, guild);
         const credentials = InstanceUtils.readCredentialsFile(guild.id);

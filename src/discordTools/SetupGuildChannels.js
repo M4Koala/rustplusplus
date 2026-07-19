@@ -98,34 +98,29 @@ async function addTextChannel(name, idName, client, guild, parent, permissionWri
         }
     }
 
-    /* A freshly created channel has no permission overwrites of its own. Sync it with the
-       category, so it gets the same permission set as its already existing siblings, even
-       when permission management is turned off. Adopted channels are left untouched, they
-       may carry manually configured permissions. */
-    if (created && !Config.discord.manageChannelPermissions) {
-        try {
-            await channel.lockPermissions();
-        }
-        catch (e) {
-            /* Ignore */
-        }
-    }
+    /* Permissions are only ever applied to a freshly created channel — existing/adopted
+       channels may carry manually configured overwrites that must survive a bot restart.
+       When permission management is on, the created channel gets the canonical permission
+       set; when off, it syncs with the category so it matches its existing siblings. */
+    if (created) {
+        if (Config.discord.manageChannelPermissions) {
+            const perms = PermissionHandler.getPermissionsReset(client, guild, permissionWrite);
 
-    if (Config.discord.manageChannelPermissions) {
-        const perms = PermissionHandler.getPermissionsReset(client, guild, permissionWrite);
-
-        try {
-            await channel.permissionOverwrites.set(perms);
+            try {
+                await channel.permissionOverwrites.set(perms);
+            }
+            catch (e) {
+                /* Ignore */
+            }
         }
-        catch (e) {
-            /* Ignore */
+        else {
+            try {
+                await channel.lockPermissions();
+            }
+            catch (e) {
+                /* Ignore */
+            }
         }
-
-        /* Currently, this halts the entire application... Too lazy to fix...
-           It is possible to just remove the channels and let the bot recreate them with correct name language */
-        //channel.setName(name);
-
-        channel.lockPermissions();
     }
 }
 

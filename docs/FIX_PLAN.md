@@ -289,6 +289,59 @@ disconnect — one copy frozen, one live. Two cooperating root causes, both fixe
 
 ---
 
+# Round 4 — grid accuracy, Deep Sea detection fallback, self-updating settings channel,
+# startup never touches permissions
+
+## Grid coordinates were off by one row (and sometimes one column)
+Reported: a shop at the NE corner of U9 in-game was announced as `[V8]`. Two root causes in
+`src/util/map.js`:
+* **Wrong cell size**: 146.25 instead of the game's 1024/7 = 146.28571… (the constant the
+  companion tools use). The error accumulates eastward, so positions near a cell border got
+  pushed one column east (U → V).
+* **Wrong anchor/row direction**: the grid was truncated to a "corrected map size" (multiple
+  of the cell size) and rows were counted from the bottom of that truncated square. The
+  in-game grid uses the raw world size with row 0 anchored at the **top**; the partial cells
+  sit in the east-most column and south-most row. On e.g. a 4500 map (remainder ≈112) most
+  of the map was therefore reported one row too far north (9 → 8).
+Fixed: `gridDiameter = 1024/7`, rows = `floor((mapSize - y) / cell)` from the top, columns =
+`floor(x / cell)` from the west, no size correction (`getCorrectedMapSize()` now returns the
+size unchanged and only exists for compatibility). Also applies to the "West of grid N" /
+"North of grid X" labels used for out-of-grid positions such as the Deep Sea.
+
+## Deep Sea detection: vendor names alone were not enough
+The event was detected only via known vendor marker names (≥3 distinct); on live servers the
+markers did not match the list, so the event was never detected (`!deepsea` claimed closed
+while the city was open). New second signal, either one activates the event:
+* **Vending machines outside the grid system** (≥2, `DEEP_SEA_MIN_OUTSIDE_GRID_VENDORS`):
+  the floating city spawns beyond the map edge (N/W/S/E), where player shops cannot exist —
+  works regardless of vendor names. Location = centroid of all matched markers.
+The once-per-connection marker diagnostic now tags names with `[outside grid]` so the name
+list can be refined from the logs. Also fixed a broken filter in `updateVendingMachines`
+(`filter(e => e.x !== marker.x) || e.y !== marker.y`) that removed every machine sharing the
+x coordinate of a departing one — which could crash the remaining-marker update and made
+despawn tracking unreliable.
+
+## Settings channel updates itself after bot updates
+New notification settings (e.g. the Deep Sea ones) only appeared after `/reset settings`,
+because `SetupSettingsMenu` never touches an already populated channel. Now, at every
+startup, the settings channel is scanned (button customIds identify which settings have a
+message) and messages for missing notification settings are **appended** — no reset needed,
+existing messages/values untouched.
+
+## Startup never rewrites channel permissions anymore
+`setupGuild()` called `resetPermissionsAllChannels()` on every non-first startup (and
+`SetupGuildCategory`/`SetupGuildChannels` re-applied the canonical set to every channel),
+wiping manually configured overwrites unless `RPP_MANAGE_CHANNEL_PERMISSIONS=false` was set.
+Now the canonical permission set is applied **only**:
+* to a category/channel the bot just **created** (when management is on; a created channel
+  with management off syncs with its category instead), and
+* on explicit user action: `/reset discord`, `/role`, `/blacklist`.
+Existing channels are never touched at startup, so `RPP_MANAGE_CHANNEL_PERMISSIONS=false`
+is no longer needed to protect a customized setup (leaving management on is now safe and
+keeps `/role`//`/blacklist`/created-channel handling working).
+
+---
+
 # Planned (not implemented): phone call when a smart alarm triggers
 
 **Goal:** registered phone numbers get an actual call (ringing phone, TTS message) when a
