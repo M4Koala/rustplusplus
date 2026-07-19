@@ -21,21 +21,23 @@
 const Client = require('../../index.ts');
 
 module.exports = {
-    gridDiameter: 146.25,
+    /* One in-game map grid cell is 1024/7 = 146.28571... world units (the same constant the
+       game and the companion tools use). 146.25 (used upstream) slowly drifts east of the
+       true cell borders and reports the wrong grid near cell edges. */
+    gridDiameter: 1024 / 7,
 
     getPos: function (x, y, mapSize, rustplus) {
-        const correctedMapSize = module.exports.getCorrectedMapSize(mapSize);
         const pos = { location: null, monument: null, string: null, x: x, y: y }
 
-        if (module.exports.isOutsideGridSystem(x, y, correctedMapSize)) {
-            if (module.exports.isOutsideRowOrColumn(x, y, correctedMapSize)) {
-                if (x < 0 && y > correctedMapSize) {
+        if (module.exports.isOutsideGridSystem(x, y, mapSize)) {
+            if (module.exports.isOutsideRowOrColumn(x, y, mapSize)) {
+                if (x < 0 && y > mapSize) {
                     pos.location = Client.client.intlGet(rustplus.guildId, 'northWest');
                 }
                 else if (x < 0 && y < 0) {
                     pos.location = Client.client.intlGet(rustplus.guildId, 'southWest');
                 }
-                else if (x > correctedMapSize && y > correctedMapSize) {
+                else if (x > mapSize && y > mapSize) {
                     pos.location = Client.client.intlGet(rustplus.guildId, 'northEast');
                 }
                 else {
@@ -44,15 +46,15 @@ module.exports = {
             }
             else {
                 let str = '';
-                if (x < 0 || x > correctedMapSize) {
+                if (x < 0 || x > mapSize) {
                     str += (x < 0) ? Client.client.intlGet(rustplus.guildId, 'westOfGrid') :
                         Client.client.intlGet(rustplus.guildId, 'eastOfGrid');
-                    str += ` ${module.exports.getGridPosNumberY(y, correctedMapSize)}`;
+                    str += ` ${module.exports.getGridPosNumberY(y, mapSize)}`;
                 }
                 else {
                     str += (y < 0) ? Client.client.intlGet(rustplus.guildId, 'southOfGrid') :
                         Client.client.intlGet(rustplus.guildId, 'northOfGrid');
-                    str += ` ${module.exports.getGridPosLettersX(x, correctedMapSize)}`;
+                    str += ` ${module.exports.getGridPosLettersX(x, mapSize)}`;
                 }
                 pos.location = str;
             }
@@ -76,40 +78,34 @@ module.exports = {
     },
 
     getGridPos: function (x, y, mapSize) {
-        const correctedMapSize = module.exports.getCorrectedMapSize(mapSize);
-
         /* Outside the grid system */
-        if (module.exports.isOutsideGridSystem(x, y, correctedMapSize)) {
+        if (module.exports.isOutsideGridSystem(x, y, mapSize)) {
             return null;
         }
 
-        const gridPosLetters = module.exports.getGridPosLettersX(x, correctedMapSize);
-        const gridPosNumber = module.exports.getGridPosNumberY(y, correctedMapSize);
+        const gridPosLetters = module.exports.getGridPosLettersX(x, mapSize);
+        const gridPosNumber = module.exports.getGridPosNumberY(y, mapSize);
 
         return gridPosLetters + gridPosNumber;
     },
 
+    /* The in-game grid is anchored at the top-left of the world: column A starts at the west
+       edge, row 0 at the north edge (y = mapSize). When the world size is not a multiple of
+       the cell size, the partial cells are the east-most column and the south-most row —
+       they still count as their own grid on the in-game map, so no size "correction". */
+
     getGridPosLettersX: function (x, mapSize) {
-        let counter = 1;
-        for (let startGrid = 0; startGrid < mapSize; startGrid += module.exports.gridDiameter) {
-            if (x >= startGrid && x <= (startGrid + module.exports.gridDiameter)) {
-                /* We're at the correct grid! */
-                return module.exports.numberToLetters(counter);
-            }
-            counter++;
-        }
+        const numberOfGrids = Math.ceil(mapSize / module.exports.gridDiameter);
+        let grid = Math.floor(x / module.exports.gridDiameter);
+        grid = Math.max(0, Math.min(grid, numberOfGrids - 1));
+        return module.exports.numberToLetters(grid + 1);
     },
 
     getGridPosNumberY: function (y, mapSize) {
-        let counter = 1;
-        const numberOfGrids = Math.floor(mapSize / module.exports.gridDiameter);
-        for (let startGrid = 0; startGrid < mapSize; startGrid += module.exports.gridDiameter) {
-            if (y >= startGrid && y <= (startGrid + module.exports.gridDiameter)) {
-                /* We're at the correct grid! */
-                return numberOfGrids - counter;
-            }
-            counter++;
-        }
+        const numberOfGrids = Math.ceil(mapSize / module.exports.gridDiameter);
+        let grid = Math.floor((mapSize - y) / module.exports.gridDiameter);
+        grid = Math.max(0, Math.min(grid, numberOfGrids - 1));
+        return grid;
     },
 
     numberToLetters: function (num) {
@@ -120,9 +116,10 @@ module.exports = {
     },
 
     getCorrectedMapSize: function (mapSize) {
-        const remainder = mapSize % module.exports.gridDiameter;
-        const offset = module.exports.gridDiameter - remainder;
-        return (remainder < 120) ? mapSize - remainder : mapSize + offset;
+        /* The in-game grid uses the raw world size (partial edge cells included), so no
+           rounding is done anymore. Kept so existing correctedMapSize consumers keep
+           working — it is simply the actual map size now. */
+        return mapSize;
     },
 
     getAngleBetweenPoints: function (x1, y1, x2, y2) {
