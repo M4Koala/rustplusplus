@@ -255,6 +255,23 @@ file (orphans from crashes/state resets/second processes, which would otherwise 
 stale forever). Messages younger than 5 minutes are spared to avoid racing an in-flight
 send. When the sweep removes something it logs a warning including the second-process hint.
 
+## Zombie rustplus instances after rapid disconnect/connect (in-process duplicates)
+Observed live: after pressing DISCONNECT/CONNECT in quick succession, every event message
+was posted twice and two full information-embed sets appeared — from a **single** process.
+`createRustplusInstance()` simply overwrote `client.rustplusInstances[guildId]`; when a
+second CONNECT click (or a reconnect-timer race) created a new instance while the previous
+one was still connecting, the old one was never disconnected: a zombie with its own socket
+and polling interval. Fixed in three layers:
+1. `createRustplusInstance()` marks any still-registered instance deleted and disconnects
+   it before replacing it.
+2. The `connected` event handler bails out (and disconnects) when its instance is no longer
+   the registered one — checked once at the start and again after the slow map request.
+3. `pollingHandler` self-terminates a poller whose instance was replaced/deleted (clears
+   its intervals, disconnects), so no zombie can survive longer than one poll tick.
+Also fixed the `TypeError: reading 'leaderSteamId'` unhandled rejection seen during the
+same incident (`updateLeaderRustPlusLiteInstance` / FcmListenerLite now guard against a
+not-yet-created team structure and a missing serverListLite entry).
+
 ---
 
 # Planned (not implemented): phone call when a smart alarm triggers

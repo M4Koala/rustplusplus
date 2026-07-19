@@ -32,6 +32,18 @@ const VendingMachines = require('../handlers/vendingMachineHandler.js');
 
 module.exports = {
     pollingHandler: async function (rustplus, client) {
+        /* Kill zombie pollers: an instance that got replaced or deleted must not keep
+           polling, it would post duplicates of everything (events, information, ...). */
+        if (rustplus.isDeleted || client.rustplusInstances[rustplus.guildId] !== rustplus) {
+            clearInterval(rustplus.pollingTaskId);
+            clearInterval(rustplus.tokensReplenishTaskId);
+            if (!rustplus.isDeleted) {
+                rustplus.isDeleted = true;
+                rustplus.disconnect();
+            }
+            return;
+        }
+
         /* Poll information such as info, mapMarkers, teamInfo and time */
         let info = await rustplus.getInfoAsync();
         if (!(await rustplus.isResponseValid(info))) return;

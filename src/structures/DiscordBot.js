@@ -316,6 +316,15 @@ class DiscordBot extends Discord.Client {
     }
 
     createRustplusInstance(guildId, serverIp, appPort, steamId, playerToken) {
+        /* Tear down any instance that is still registered for this guild. Just overwriting
+           the reference would leave a zombie whose socket and polling keep running and post
+           duplicates of everything (e.g. after rapid disconnect/connect button clicks). */
+        const existing = this.rustplusInstances[guildId];
+        if (existing) {
+            existing.isDeleted = true;
+            existing.disconnect();
+        }
+
         let rustplus = new RustPlus(guildId, serverIp, appPort, steamId, playerToken);
 
         /* Add rustplus instance to Object */

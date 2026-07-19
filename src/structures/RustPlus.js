@@ -158,8 +158,13 @@ class RustPlus extends RustPlusLib {
         }
 
         const instance = Client.client.getInstance(this.guildId);
+
+        /* The team structure does not exist yet when the first poll failed (e.g. a flaky
+           connection right after connect), and the server might have no lite entries at all. */
+        if (this.team === null) return;
         const leader = this.team.leaderSteamId;
         if (leader === this.playerId) return;
+        if (!instance.serverListLite.hasOwnProperty(this.serverId)) return;
         if (!(leader in instance.serverListLite[this.serverId])) return;
         const serverLite = instance.serverListLite[this.serverId][leader];
 

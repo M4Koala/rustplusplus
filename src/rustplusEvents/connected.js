@@ -37,6 +37,11 @@ module.exports = {
         const guildId = rustplus.guildId;
         const serverId = rustplus.serverId;
 
+        /* The instance was replaced or deleted while the connection was being established
+           (e.g. rapid disconnect/connect clicks). Let it die silently, a newer instance owns
+           the guild now — a zombie here would post duplicates of everything. */
+        if (isStaleInstance(client, rustplus)) return;
+
         rustplus.uptimeServer = new Date();
 
         /* Handle the reconnection bookkeeping immediately at socket connect, so that the
@@ -91,6 +96,10 @@ module.exports = {
             return;
         }
         rustplus.log(client.intlGet(null, 'connectedCap'), client.intlGet(null, 'rustplusOperational'));
+
+        /* The map request above can take minutes, re-check that this instance was not
+           replaced in the meantime before posting anything. */
+        if (isStaleInstance(client, rustplus)) return;
 
         const info = await rustplus.getInfoAsync();
         if (await rustplus.isResponseValid(info)) rustplus.info = new Info(info.info)
@@ -156,6 +165,15 @@ module.exports = {
         rustplus.updateLeaderRustPlusLiteInstance();
     },
 };
+
+function isStaleInstance(client, rustplus) {
+    if (rustplus.isDeleted || client.rustplusInstances[rustplus.guildId] !== rustplus) {
+        rustplus.isDeleted = true;
+        rustplus.disconnect();
+        return true;
+    }
+    return false;
+}
 
 function restoreStashedState(client, rustplus, stash) {
     const old = stash.rustplus;
