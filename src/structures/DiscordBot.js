@@ -243,6 +243,15 @@ class DiscordBot extends Discord.Client {
 
         await require('../discordTools/SetupSettingsMenu')(this, guild);
 
+        /* Remove stale bot messages that are no longer tracked in the instance file
+           (leftovers of an earlier crash, a state reset, or a second bot process). They
+           would never be updated again and sit in the channels as duplicates forever. */
+        const updatedInstance = this.getInstance(guild.id);
+        await DiscordTools.deleteUntrackedBotMessages(guild.id, 'servers',
+            Object.values(updatedInstance.serverList).map(e => e.messageId));
+        await DiscordTools.deleteUntrackedBotMessages(guild.id, 'information',
+            Object.values(updatedInstance.informationMessageId));
+
         if (firstTime) await PermissionHandler.resetPermissionsAllChannels(this, guild);
 
         this.resetRustplusVariables(guild.id);

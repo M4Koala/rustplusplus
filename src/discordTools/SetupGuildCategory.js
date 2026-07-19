@@ -35,6 +35,20 @@ module.exports = async (client, guild) => {
         category = DiscordTools.getCategoryByName(guild.id, 'rustplusplus');
     }
     if (category === undefined) {
+        /* Still nothing (e.g. the category was renamed): adopt the category that holds the
+           tracked channels, so an existing setup with custom permissions is reused instead
+           of being recreated. */
+        for (const [idName, channelId] of Object.entries(instance.channelId)) {
+            if (idName === 'category' || channelId === null) continue;
+
+            const channel = DiscordTools.getTextChannelById(guild.id, channelId);
+            if (channel === undefined || channel.parentId === null) continue;
+
+            category = DiscordTools.getCategoryById(guild.id, channel.parentId);
+            if (category !== undefined) break;
+        }
+    }
+    if (category === undefined) {
         category = await DiscordTools.addCategory(guild.id, 'rustplusplus');
     }
     if (category !== undefined && instance.channelId.category !== category.id) {

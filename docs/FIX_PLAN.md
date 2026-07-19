@@ -217,6 +217,46 @@ event embed. New settings entries appear after `/reset settings` on existing set
 
 ---
 
+# Round 3 — wipe cleanup without channel replacement, duplicate healing
+
+## Channels are never replaced anymore (permissions always survive)
+The wipe cleanup (and `/reset history`, disconnect/delete buttons) used to **replace** the
+events/teamchat/activity channels with empty clones. That created new channel ids every wipe
+and — when the clone/permission copy didn't behave as expected — channels that no longer
+matched the permission setup of the old ones. Replaced by `purgeTextChannel()`:
+* Deletes the entire history **in place** — channel id, position, permission overwrites and
+  category membership are untouched. No new channels or categories are ever created by the
+  wipe flow.
+* Messages younger than 14 days are bulk-deleted (weekly wipe cadence → everything), older
+  ones are deleted one by one (slow but runs in the background).
+* Only messages that existed when the purge started are deleted (snowflake boundary), so the
+  new wipe's messages can be posted immediately while the purge still runs.
+
+## When a channel really must be created, it inherits the category permissions
+* `SetupGuildCategory` gained a third adoption fallback: if the stored id is stale *and* no
+  category named `rustplusplus` exists (e.g. renamed), the category holding the tracked
+  channels is adopted — a customized setup is never recreated just because of a rename.
+* A **freshly created** channel now gets created inside the category and synced to the
+  category's permission overwrites (`lockPermissions`), also when
+  `manageChannelPermissions` is off. Adopted channels keep their manually configured perms.
+
+## Duplicate server cards / duplicate information embeds
+Message ids for the server cards and the information embeds are tracked per guild in the
+instance file — a single bot process physically cannot keep **two** sets of embeds updating
+in parallel. Two sets that both update (observed: one set edited until 12:54, the other until
+13:07 the same day) mean **two bot processes are running with the same Discord token but
+separate `instances/` state** (e.g. an old upstream-image container still auto-restarting
+next to the fork container, or a local `npm start` next to Docker). Check with `docker ps`
+and stop the stray one — the bot cannot fix that from inside.
+
+What the bot does now handle itself: at every startup it sweeps the **servers** and
+**information** channels and deletes bot messages that are no longer tracked in the instance
+file (orphans from crashes/state resets/second processes, which would otherwise sit there
+stale forever). Messages younger than 5 minutes are spared to avoid racing an in-flight
+send. When the sweep removes something it logs a warning including the second-process hint.
+
+---
+
 # Planned (not implemented): phone call when a smart alarm triggers
 
 **Goal:** registered phone numbers get an actual call (ringing phone, TTS message) when a

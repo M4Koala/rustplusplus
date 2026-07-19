@@ -220,7 +220,7 @@ module.exports = {
         return true;
     },
 
-    addTextChannel: async function (guildId, name) {
+    addTextChannel: async function (guildId, name, parentId = null) {
         const guild = module.exports.getGuild(guildId);
 
         if (guild) {
@@ -228,6 +228,7 @@ module.exports = {
                 return await guild.channels.create({
                     name: name,
                     type: Discord.ChannelType.GuildText,
+                    parent: parentId ?? undefined,
                     permissionOverwrites: !Config.discord.manageChannelPermissions ? [] : [{
                         id: guild.roles.everyone.id,
                         deny: [Discord.PermissionFlagsBits.SendMessages]
@@ -256,52 +257,107 @@ module.exports = {
         return true;
     },
 
-    replaceTextChannel: async function (guildId, idName) {
-        /* Replaces a text channel with an empty clone (name/permissions preserved) to wipe its
-           entire history instantly, deleting messages one by one would take hours for months of
-           history. The channel id tracking is only updated after the old channel was
-           successfully deleted, on any failure the clone is rolled back and the original
-           channel stays in place. Returns the channel that is tracked afterwards. */
+    purgeTextChannel: async function (guildId, idName) {
+        /* Deletes the entire message history of a channel in place. The channel itself is
+           reused, so its id, position and permission overwrites all stay untouched. Only
+           messages that existed when the purge started are deleted, anything posted afterwards
+           (the new wipe's messages) is safe, which also makes it safe to run this in the
+           background without awaiting it. Messages younger than 14 days are removed in bulk,
+           older ones have to go one by one. */
         const instance = Client.client.getInstance(guildId);
         const channel = module.exports.getTextChannelById(guildId, instance.channelId[idName]);
-        if (!channel) return undefined;
+        if (!channel) return;
 
-        const position = channel.position;
+        const boundaryId = Discord.SnowflakeUtil.generate({ timestamp: Date.now() }).toString();
 
-        let clone = undefined;
-        try {
-            clone = await channel.clone();
-            await channel.delete();
-        }
-        catch (e) {
-            Client.client.log(Client.client.intlGet(null, 'errorCap'), `replaceTextChannel: ${e}`, 'error');
+        let totalDeleted = 0;
+        for (let pass = 0; pass < 200; pass++) {
+            let messages = null;
+            try {
+                messages = await channel.messages.fetch({ limit: 100, before: boundaryId });
+            }
+            catch (e) {
+                Client.client.log(Client.client.intlGet(null, 'errorCap'),
+                    Client.client.intlGet(null, 'couldNotPerformMessagesFetch', { channel: channel.id }), 'error');
+                break;
+            }
+            if (messages.size === 0) break;
 
-            /* Roll back the clone (if any), keep the original channel and fall back to
-               clearing its messages. */
-            if (clone !== undefined) {
+            let deleted = 0;
+
+            /* bulkDelete with filterOld=true silently skips the messages older than 14 days. */
+            let bulkDeleted = null;
+            try {
+                bulkDeleted = await channel.bulkDelete(messages, true);
+                deleted += bulkDeleted.size;
+            }
+            catch (e) {
+                Client.client.log(Client.client.intlGet(null, 'errorCap'),
+                    Client.client.intlGet(null, 'couldNotPerformBulkDelete', { channel: channel.id }), 'error');
+            }
+
+            for (const message of messages.values()) {
+                if (bulkDeleted !== null && bulkDeleted.has(message.id)) continue;
                 try {
-                    await clone.delete();
+                    await message.delete();
+                    deleted += 1;
                 }
-                catch (e2) {
-                    /* Ignore */
+                catch (e) {
+                    Client.client.log(Client.client.intlGet(null, 'errorCap'),
+                        Client.client.intlGet(null, 'couldNotPerformMessageDelete'), 'error');
                 }
             }
 
-            await module.exports.clearTextChannel(guildId, channel.id, 100);
-            return channel;
+            totalDeleted += deleted;
+            if (deleted === 0) break; /* Nothing left that can be deleted, don't spin. */
         }
 
-        instance.channelId[idName] = clone.id;
-        Client.client.setInstance(guildId, instance);
+        if (totalDeleted !== 0) {
+            Client.client.log(Client.client.intlGet(null, 'infoCap'),
+                Client.client.intlGet(null, 'purgedChannelMessages',
+                    { amount: `${totalDeleted}`, channel: channel.name }));
+        }
+    },
 
+    deleteUntrackedBotMessages: async function (guildId, idName, trackedMessageIds) {
+        /* Removes messages of this bot that are not tracked in the instance file. Such orphans
+           appear when a tracked message id gets lost while the message itself remains (an
+           earlier crash, a state reset, or a second bot process running with the same token),
+           and they would otherwise sit in the channel stale forever. Recently posted messages
+           are spared to not race an in-flight send whose id has not been stored yet. */
+        const instance = Client.client.getInstance(guildId);
+        const channel = module.exports.getTextChannelById(guildId, instance.channelId[idName]);
+        if (!channel) return;
+
+        let messages = null;
         try {
-            await clone.setPosition(position);
+            messages = await channel.messages.fetch({ limit: 100 });
         }
         catch (e) {
-            /* Cosmetic only, ignore */
+            return;
         }
 
-        return clone;
+        const tracked = trackedMessageIds.filter(e => e !== null);
+        let removed = 0;
+        for (const message of messages.values()) {
+            if (message.author.id !== Client.client.user.id) continue;
+            if (tracked.includes(message.id)) continue;
+            if (Date.now() - message.createdTimestamp < 5 * 60 * 1000) continue;
+
+            try {
+                await message.delete();
+                removed += 1;
+            }
+            catch (e) {
+                /* Ignore */
+            }
+        }
+
+        if (removed !== 0) {
+            Client.client.log(Client.client.intlGet(null, 'warningCap'),
+                Client.client.intlGet(null, 'removedUntrackedMessages',
+                    { amount: `${removed}`, channel: channel.name }));
+        }
     },
 
     clearTextChannel: async function (guildId, channelId, numberOfMessages) {
@@ -357,16 +413,16 @@ module.exports = {
     },
 
     clearInformationChannel: async function (guildId) {
-        /* Clears the information channel and forgets the tracked message ids, so that the
-           next connection posts fresh information messages. */
+        /* Forget the tracked message ids first so that fresh information messages get posted,
+           then purge the old ones in the background (the purge only touches messages from
+           before this point in time, so the fresh ones are safe). */
         const instance = Client.client.getInstance(guildId);
-
-        await module.exports.clearTextChannel(guildId, instance.channelId.information, 100);
-
         for (const key of Object.keys(instance.informationMessageId)) {
             instance.informationMessageId[key] = null;
         }
         Client.client.setInstance(guildId, instance);
+
+        module.exports.purgeTextChannel(guildId, 'information');
     },
 
     getDiscordFormattedDate: function (unixtime) {

@@ -114,11 +114,14 @@ module.exports = {
 
         /* On a fresh wipe (connected to another server than last time, or a map wipe was
            detected) throw out the previous wipe's history from the events, teamchat, activity
-           and information channels, before any new messages are posted below. */
+           and information channels. The channels are purged in place (never replaced), so
+           their ids, positions and permissions survive the wipe. The purges run in the
+           background and only touch messages from before this point in time, so the new
+           wipe's messages posted below are safe. */
         if (wipeDetected || (rustplus.isNewConnection && instance.lastConnectedServerId !== serverId)) {
-            await DiscordTools.replaceTextChannel(guildId, 'events');
-            await DiscordTools.replaceTextChannel(guildId, 'teamchat');
-            await DiscordTools.replaceTextChannel(guildId, 'activity');
+            DiscordTools.purgeTextChannel(guildId, 'events');
+            DiscordTools.purgeTextChannel(guildId, 'teamchat');
+            DiscordTools.purgeTextChannel(guildId, 'activity');
             await DiscordTools.clearInformationChannel(guildId);
         }
         if (instance.lastConnectedServerId !== serverId) {

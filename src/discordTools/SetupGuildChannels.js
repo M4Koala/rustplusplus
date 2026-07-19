@@ -70,14 +70,16 @@ async function addTextChannel(name, idName, client, guild, parent, permissionWri
             !usedIds.includes(c.id));
         channel = candidates.find(c => c.parentId === parent.id) ?? candidates.first();
     }
+    let created = false;
     if (channel === undefined) {
-        channel = await DiscordTools.addTextChannel(guild.id, name);
+        channel = await DiscordTools.addTextChannel(guild.id, name, parent.id);
 
         if (channel === undefined) {
             client.log(client.intlGet(null, 'errorCap'),
                 client.intlGet(null, 'couldNotCreateTextChannel', { name: name }), 'error');
             return;
         }
+        created = true;
     }
 
     if (instance.channelId[idName] !== channel.id) {
@@ -93,6 +95,19 @@ async function addTextChannel(name, idName, client, guild, parent, permissionWri
         catch (e) {
             client.log(client.intlGet(null, 'errorCap'),
                 client.intlGet(null, 'couldNotSetParent', { channelId: channel.id }), 'error');
+        }
+    }
+
+    /* A freshly created channel has no permission overwrites of its own. Sync it with the
+       category, so it gets the same permission set as its already existing siblings, even
+       when permission management is turned off. Adopted channels are left untouched, they
+       may carry manually configured permissions. */
+    if (created && !Config.discord.manageChannelPermissions) {
+        try {
+            await channel.lockPermissions();
+        }
+        catch (e) {
+            /* Ignore */
         }
     }
 

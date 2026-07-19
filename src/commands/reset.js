@@ -129,10 +129,12 @@ module.exports = {
 			} break;
 
 			case 'history': {
-				/* Replace the history channels with empty clones, wiping all old messages. */
-				await DiscordTools.replaceTextChannel(guild.id, 'events');
-				await DiscordTools.replaceTextChannel(guild.id, 'teamchat');
-				await DiscordTools.replaceTextChannel(guild.id, 'activity');
+				/* Purge the history channels in place, wiping all old messages while keeping
+				   the channels (and their permissions) themselves. The purges continue in the
+				   background, months of old history can take a while. */
+				DiscordTools.purgeTextChannel(guild.id, 'events');
+				DiscordTools.purgeTextChannel(guild.id, 'teamchat');
+				DiscordTools.purgeTextChannel(guild.id, 'activity');
 				await DiscordTools.clearInformationChannel(guild.id);
 
 				const rustplus = client.rustplusInstances[guild.id];
