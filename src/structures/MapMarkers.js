@@ -278,7 +278,12 @@ class MapMarkers {
 
     logMarkerDiagnostics(mapMarkers) {
         /* Log the named vending machine markers and markers of unknown types once per
-           connection, to be able to diagnose event detection (e.g. Deep Sea vendor names). */
+           connection, to be able to diagnose event detection (e.g. Deep Sea vendor names).
+           updateMapMarkers runs twice on the first poll (constructor + poll handler), guard
+           so the diagnostic is not logged twice. */
+        if (this.markerDiagnosticsLogged) return;
+        this.markerDiagnosticsLogged = true;
+
         const vendingMachineNames = this.vendingMachines.filter(e => e.name && e.name !== '')
             .map(e => `'${e.name}'`).join(', ');
         this.rustplus.log(this.client.intlGet(null, 'infoCap'),
