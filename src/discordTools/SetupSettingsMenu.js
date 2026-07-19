@@ -38,13 +38,14 @@ module.exports = async (client, guild, forced = false) => {
     }
 
     let shouldPopulate = instance.firstTime || forced;
+    let existingMessages = null;
 
     if (!shouldPopulate) {
         /* Repopulate automatically when the settings channel is empty, e.g. when the channel
            was recreated or adopted after the original channel was lost. */
         try {
-            const messages = await channel.messages.fetch({ limit: 1 });
-            if (messages.size === 0) shouldPopulate = true;
+            existingMessages = await channel.messages.fetch({ limit: 100 });
+            if (existingMessages.size === 0) shouldPopulate = true;
         }
         catch (e) {
             /* Ignore */
@@ -59,6 +60,33 @@ module.exports = async (client, guild, forced = false) => {
 
         instance.firstTime = false;
         client.setInstance(guild.id, instance);
+    }
+    else if (existingMessages !== null) {
+        /* Notification settings added by a bot update have no message in an already
+           populated settings channel. Append them, so an update does not require
+           /reset settings. Present settings are recognized via their button customIds. */
+        const presentSettings = new Set();
+        for (const message of existingMessages.values()) {
+            for (const row of message.components ?? []) {
+                for (const component of row.components ?? []) {
+                    const customId = component.customId ?? '';
+                    if (customId.startsWith('DiscordNotification')) {
+                        try {
+                            presentSettings.add(JSON.parse(customId.replace('DiscordNotification', '')).setting);
+                        }
+                        catch (e) {
+                            /* Ignore */
+                        }
+                    }
+                }
+            }
+        }
+
+        for (const setting in instance.notificationSettings) {
+            if (!presentSettings.has(setting)) {
+                await sendNotificationSetting(client, guild.id, channel, setting);
+            }
+        }
     }
 
 };
@@ -293,22 +321,28 @@ async function setupNotificationSettings(client, guildId, channel) {
     });
 
     for (const setting in instance.notificationSettings) {
-        await client.messageSend(channel, {
-            embeds: [DiscordEmbeds.getEmbed({
-                color: Constants.COLOR_SETTINGS,
-                title: client.intlGet(guildId, setting),
-                thumbnail: `attachment://${instance.notificationSettings[setting].image}`
-            })],
-            components: [
-                DiscordButtons.getNotificationButtons(
-                    guildId, setting,
-                    instance.notificationSettings[setting].discord,
-                    instance.notificationSettings[setting].inGame,
-                    instance.notificationSettings[setting].voice)],
-            files: [
-                new Discord.AttachmentBuilder(
-                    Path.join(__dirname, '..',
-                        `resources/images/events/${instance.notificationSettings[setting].image}`))]
-        });
+        await sendNotificationSetting(client, guildId, channel, setting);
     }
+}
+
+async function sendNotificationSetting(client, guildId, channel, setting) {
+    const instance = client.getInstance(guildId);
+
+    await client.messageSend(channel, {
+        embeds: [DiscordEmbeds.getEmbed({
+            color: Constants.COLOR_SETTINGS,
+            title: client.intlGet(guildId, setting),
+            thumbnail: `attachment://${instance.notificationSettings[setting].image}`
+        })],
+        components: [
+            DiscordButtons.getNotificationButtons(
+                guildId, setting,
+                instance.notificationSettings[setting].discord,
+                instance.notificationSettings[setting].inGame,
+                instance.notificationSettings[setting].voice)],
+        files: [
+            new Discord.AttachmentBuilder(
+                Path.join(__dirname, '..',
+                    `resources/images/events/${instance.notificationSettings[setting].image}`))]
+    });
 }
