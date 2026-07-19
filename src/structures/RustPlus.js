@@ -1259,10 +1259,10 @@ class RustPlus extends RustPlusLib {
     }
 
     getCommandDeepSea(isInfoChannel = false) {
+        /* No location in any of the Deep Sea messages: the vendor markers the event is
+           detected by sit at the interior zone's off-map position, not at the visible
+           entrance, so a derived direction would be misleading. */
         if (this.mapMarkers.deepSeaActive) {
-            const location = this.mapMarkers.deepSeaLocation !== null ?
-                this.mapMarkers.deepSeaLocation.string : '-';
-
             if (this.mapMarkers.deepSeaActivatedAt !== null) {
                 const closesInSeconds = Math.max(0,
                     (Constants.DEEP_SEA_DURATION_MS - (new Date() - this.mapMarkers.deepSeaActivatedAt)) / 1000);
@@ -1270,21 +1270,19 @@ class RustPlus extends RustPlusLib {
 
                 if (isInfoChannel) {
                     return Client.client.intlGet(this.guildId, 'deepSeaInfoActive', {
-                        location: location,
                         time: time
                     });
                 }
                 return Client.client.intlGet(this.guildId, 'deepSeaActiveAtClosesIn', {
-                    location: location,
                     time: time
                 });
             }
 
             /* The event was already active when the bot connected, remaining time unknown. */
             if (isInfoChannel) {
-                return Client.client.intlGet(this.guildId, 'atLocation', { location: location });
+                return Client.client.intlGet(this.guildId, 'deepSeaInfoOpen');
             }
-            return Client.client.intlGet(this.guildId, 'deepSeaActiveAt', { location: location });
+            return Client.client.intlGet(this.guildId, 'deepSeaActiveAt');
         }
 
         if (this.mapMarkers.timeSinceDeepSeaWasOut === null) {

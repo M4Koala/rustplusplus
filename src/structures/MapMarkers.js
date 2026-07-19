@@ -868,9 +868,7 @@ class MapMarkers {
 
             this.rustplus.sendEvent(
                 this.rustplus.notificationSettings.deepSeaDetectedSetting,
-                this.client.intlGet(this.rustplus.guildId, 'deepSeaAppearedAt', {
-                    location: this.deepSeaLocation.string
-                }),
+                this.client.intlGet(this.rustplus.guildId, 'deepSeaAppearedAt'),
                 'deepsea',
                 Constants.COLOR_DEEP_SEA_APPEARED,
                 this.rustplus.isFirstPoll);
@@ -894,9 +892,7 @@ class MapMarkers {
 
             this.rustplus.sendEvent(
                 this.rustplus.notificationSettings.deepSeaLeftSetting,
-                this.client.intlGet(this.rustplus.guildId, 'deepSeaLeftMap', {
-                    location: this.deepSeaLocation !== null ? this.deepSeaLocation.string : '-'
-                }),
+                this.client.intlGet(this.rustplus.guildId, 'deepSeaLeftMap'),
                 'deepsea',
                 Constants.COLOR_DEEP_SEA_LEFT_MAP);
 
@@ -964,7 +960,6 @@ class MapMarkers {
         this.rustplus.sendEvent(
             this.rustplus.notificationSettings.deepSeaClosingSoonSetting,
             this.client.intlGet(this.rustplus.guildId, 'deepSeaClosesIn', {
-                location: this.deepSeaLocation !== null ? this.deepSeaLocation.string : '-',
                 time: `${Math.round(warningTimeMs / (60 * 1000))} min`
             }),
             'deepsea',
