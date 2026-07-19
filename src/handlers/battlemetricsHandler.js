@@ -55,7 +55,12 @@ module.exports = {
                         instance.informationMessageId.battlemetricsPlayers);
 
                     instance.informationMessageId.battlemetricsPlayers = null;
-                    client.setInstance(guildId, instance);
+
+                    /* Write on a fresh read, this tick's snapshot is stale after the awaits
+                       above and would revert concurrently stored message ids. */
+                    const fresh = client.getInstance(guildId);
+                    fresh.informationMessageId.battlemetricsPlayers = null;
+                    client.setInstance(guildId, fresh);
                 }
             }
 
@@ -92,7 +97,15 @@ module.exports = {
                         }
                     }
 
-                    client.setInstance(guildId, instance);
+                    /* Persist the updated tracker players on a fresh read, this tick's
+                       snapshot is stale after the scrape awaits and writing it back would
+                       revert concurrently stored message ids (e.g. the battlemetrics
+                       information message posted above). */
+                    const fresh = client.getInstance(guildId);
+                    if (fresh.trackers.hasOwnProperty(trackerId)) {
+                        fresh.trackers[trackerId].players = content.players;
+                        client.setInstance(guildId, fresh);
+                    }
 
                     if (firstTime) {
                         await DiscordMessages.sendTrackerMessage(guildId, trackerId);
@@ -167,7 +180,13 @@ module.exports = {
                     }
                 }
 
-                client.setInstance(guildId, instance);
+                /* Same as above: persist on a fresh read instead of this tick's stale
+                   snapshot. */
+                const freshEnd = client.getInstance(guildId);
+                if (freshEnd.trackers.hasOwnProperty(trackerId)) {
+                    freshEnd.trackers[trackerId].players = content.players;
+                    client.setInstance(guildId, freshEnd);
+                }
 
                 await DiscordMessages.sendTrackerMessage(guildId, trackerId);
             }

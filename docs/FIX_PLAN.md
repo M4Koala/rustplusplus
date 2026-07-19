@@ -272,6 +272,21 @@ Also fixed the `TypeError: reading 'leaderSteamId'` unhandled rejection seen dur
 same incident (`updateLeaderRustPlusLiteInstance` / FcmListenerLite now guard against a
 not-yet-created team structure and a missing serverListLite entry).
 
+## One-off orphaned embeds: transient fetch errors and stale instance snapshots
+Observed live: a duplicate "Battlemetrics Online Players" embed appearing without any
+disconnect — one copy frozen, one live. Two cooperating root causes, both fixed:
+1. **Transient fetch → duplicate post.** `sendMessage()` re-posted whenever fetching the
+   tracked message failed for *any* reason (rate limit, network hiccup), orphaning the
+   still-existing old message. New `fetchTrackedMessage()` distinguishes a confirmed
+   deletion (Discord error 10008 → re-post is correct) from transient errors (→ skip this
+   update cycle; the next one retries).
+2. **Stale snapshot writes.** `battlemetricsHandler` (and every tracked-message-id sender)
+   held an `instance` snapshot across awaits and wrote the whole object back, reverting
+   message ids stored concurrently by other senders — which turned the next edit into a
+   re-post. All such writes now re-read the instance file immediately before writing and
+   apply only their own field (no awaits between read and write, so no interleaving), with
+   existence checks so deleted entities/trackers can't be resurrected.
+
 ---
 
 # Planned (not implemented): phone call when a smart alarm triggers

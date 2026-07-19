@@ -149,6 +149,28 @@ module.exports = {
         return undefined;
     },
 
+    fetchTrackedMessage: async function (guildId, channelId, messageId) {
+        /* Like getMessageById, but distinguishes a message that is confirmed gone (deleted)
+           from a transient fetch problem, so that callers can decide between re-posting and
+           skipping the update. Blindly re-posting on any fetch error creates duplicates. */
+        const channel = module.exports.getTextChannelById(guildId, channelId);
+        if (!channel) return { status: 'error', message: undefined };
+
+        try {
+            const message = await channel.messages.fetch(messageId);
+            return { status: 'found', message: message };
+        }
+        catch (e) {
+            if (e && e.code === 10008) {
+                /* Unknown Message: it was deleted, re-posting is the right response. */
+                return { status: 'deleted', message: undefined };
+            }
+            Client.client.log(Client.client.intlGet(null, 'errorCap'),
+                Client.client.intlGet(null, 'couldNotFindMessage', { message: messageId }), 'error');
+            return { status: 'error', message: undefined };
+        }
+    },
+
     getMessageById: async function (guildId, channelId, messageId) {
         const guild = module.exports.getGuild(guildId);
 

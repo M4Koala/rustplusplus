@@ -38,8 +38,15 @@ module.exports = {
             return;
         }
 
-        let message = messageId !== null ?
-            await DiscordTools.getMessageById(guildId, channelId, messageId) : undefined;
+        let message = undefined;
+        if (messageId !== null) {
+            const fetched = await DiscordTools.fetchTrackedMessage(guildId, channelId, messageId);
+
+            /* On a transient fetch problem the message most likely still exists: skip this
+               update instead of posting a duplicate, the next update will try again. */
+            if (fetched.status === 'error') return undefined;
+            message = fetched.message;
+        }
 
         if (message !== undefined) {
             return await Client.client.messageEdit(message, content);
@@ -83,9 +90,14 @@ module.exports = {
         const message = await module.exports.sendMessage(guildId, content, tracker.messageId,
             instance.channelId.trackers, interaction);
 
-        if (!interaction) {
-            instance.trackers[trackerId].messageId = message.id;
-            Client.client.setInstance(guildId, instance);
+        if (!interaction && message) {
+            /* Store on a fresh read, the local snapshot is stale after the awaited send and
+               writing it back would revert concurrent updates. */
+            const fresh = Client.client.getInstance(guildId);
+            if (fresh.trackers.hasOwnProperty(trackerId)) {
+                fresh.trackers[trackerId].messageId = message.id;
+                Client.client.setInstance(guildId, fresh);
+            }
         }
     },
 
@@ -109,9 +121,14 @@ module.exports = {
         const message = await module.exports.sendMessage(guildId, content, entity.messageId,
             instance.channelId.switches, interaction);
 
-        if (!interaction) {
-            instance.serverList[serverId].switches[entityId].messageId = message.id;
-            Client.client.setInstance(guildId, instance);
+        if (!interaction && message) {
+            /* Store on a fresh read, see sendTrackerMessage. */
+            const fresh = Client.client.getInstance(guildId);
+            if (fresh.serverList.hasOwnProperty(serverId) &&
+                fresh.serverList[serverId].switches.hasOwnProperty(entityId)) {
+                fresh.serverList[serverId].switches[entityId].messageId = message.id;
+                Client.client.setInstance(guildId, fresh);
+            }
         }
     },
 
@@ -131,9 +148,14 @@ module.exports = {
         const message = await module.exports.sendMessage(guildId, content, entity.messageId,
             instance.channelId.alarms, interaction);
 
-        if (!interaction) {
-            instance.serverList[serverId].alarms[entityId].messageId = message.id;
-            Client.client.setInstance(guildId, instance);
+        if (!interaction && message) {
+            /* Store on a fresh read, see sendTrackerMessage. */
+            const fresh = Client.client.getInstance(guildId);
+            if (fresh.serverList.hasOwnProperty(serverId) &&
+                fresh.serverList[serverId].alarms.hasOwnProperty(entityId)) {
+                fresh.serverList[serverId].alarms[entityId].messageId = message.id;
+                Client.client.setInstance(guildId, fresh);
+            }
         }
     },
 
@@ -158,9 +180,14 @@ module.exports = {
         const message = await module.exports.sendMessage(guildId, content, entity.messageId,
             instance.channelId.storageMonitors, interaction);
 
-        if (!interaction) {
-            instance.serverList[serverId].storageMonitors[entityId].messageId = message.id;
-            Client.client.setInstance(guildId, instance);
+        if (!interaction && message) {
+            /* Store on a fresh read, see sendTrackerMessage. */
+            const fresh = Client.client.getInstance(guildId);
+            if (fresh.serverList.hasOwnProperty(serverId) &&
+                fresh.serverList[serverId].storageMonitors.hasOwnProperty(entityId)) {
+                fresh.serverList[serverId].storageMonitors[entityId].messageId = message.id;
+                Client.client.setInstance(guildId, fresh);
+            }
         }
     },
 
@@ -178,9 +205,14 @@ module.exports = {
         const message = await module.exports.sendMessage(guildId, content, group.messageId,
             instance.channelId.switchGroups, interaction);
 
-        if (!interaction) {
-            instance.serverList[serverId].switchGroups[groupId].messageId = message.id;
-            Client.client.setInstance(guildId, instance);
+        if (!interaction && message) {
+            /* Store on a fresh read, see sendTrackerMessage. */
+            const fresh = Client.client.getInstance(guildId);
+            if (fresh.serverList.hasOwnProperty(serverId) &&
+                fresh.serverList[serverId].switchGroups.hasOwnProperty(groupId)) {
+                fresh.serverList[serverId].switchGroups[groupId].messageId = message.id;
+                Client.client.setInstance(guildId, fresh);
+            }
         }
     },
 
@@ -324,9 +356,11 @@ module.exports = {
         const message = await module.exports.sendMessage(guildId, content, instance.informationMessageId.map,
             instance.channelId.information);
 
-        if (message) {
-            instance.informationMessageId.map = message.id;
-            Client.client.setInstance(guildId, instance);
+        if (message && message.id !== instance.informationMessageId.map) {
+            /* Store on a fresh read, see sendTrackerMessage. */
+            const fresh = Client.client.getInstance(guildId);
+            fresh.informationMessageId.map = message.id;
+            Client.client.setInstance(guildId, fresh);
         }
     },
 
@@ -404,9 +438,11 @@ module.exports = {
         const message = await module.exports.sendMessage(rustplus.guildId, content,
             instance.informationMessageId.map, instance.channelId.information);
 
-        if (message.id !== instance.informationMessageId.map) {
-            instance.informationMessageId.map = message.id;
-            Client.client.setInstance(rustplus.guildId, instance);
+        if (message && message.id !== instance.informationMessageId.map) {
+            /* Store on a fresh read, see sendTrackerMessage. */
+            const fresh = Client.client.getInstance(rustplus.guildId);
+            fresh.informationMessageId.map = message.id;
+            Client.client.setInstance(rustplus.guildId, fresh);
         }
     },
 
@@ -423,9 +459,11 @@ module.exports = {
         const message = await module.exports.sendMessage(rustplus.guildId, content,
             instance.informationMessageId.server, instance.channelId.information);
 
-        if (message.id !== instance.informationMessageId.server) {
-            instance.informationMessageId.server = message.id;
-            Client.client.setInstance(rustplus.guildId, instance);
+        if (message && message.id !== instance.informationMessageId.server) {
+            /* Store on a fresh read, see sendTrackerMessage. */
+            const fresh = Client.client.getInstance(rustplus.guildId);
+            fresh.informationMessageId.server = message.id;
+            Client.client.setInstance(rustplus.guildId, fresh);
         }
     },
 
@@ -442,9 +480,11 @@ module.exports = {
         const message = await module.exports.sendMessage(rustplus.guildId, content,
             instance.informationMessageId.event, instance.channelId.information);
 
-        if (message.id !== instance.informationMessageId.event) {
-            instance.informationMessageId.event = message.id;
-            Client.client.setInstance(rustplus.guildId, instance);
+        if (message && message.id !== instance.informationMessageId.event) {
+            /* Store on a fresh read, see sendTrackerMessage. */
+            const fresh = Client.client.getInstance(rustplus.guildId);
+            fresh.informationMessageId.event = message.id;
+            Client.client.setInstance(rustplus.guildId, fresh);
         }
     },
 
@@ -461,9 +501,11 @@ module.exports = {
         const message = await module.exports.sendMessage(rustplus.guildId, content,
             instance.informationMessageId.team, instance.channelId.information);
 
-        if (message.id !== instance.informationMessageId.team) {
-            instance.informationMessageId.team = message.id;
-            Client.client.setInstance(rustplus.guildId, instance);
+        if (message && message.id !== instance.informationMessageId.team) {
+            /* Store on a fresh read, see sendTrackerMessage. */
+            const fresh = Client.client.getInstance(rustplus.guildId);
+            fresh.informationMessageId.team = message.id;
+            Client.client.setInstance(rustplus.guildId, fresh);
         }
     },
 
@@ -477,9 +519,11 @@ module.exports = {
         const message = await module.exports.sendMessage(rustplus.guildId, content,
             instance.informationMessageId.battlemetricsPlayers, instance.channelId.information);
 
-        if (message.id !== instance.informationMessageId.battlemetricsPlayers) {
-            instance.informationMessageId.battlemetricsPlayers = message.id;
-            Client.client.setInstance(rustplus.guildId, instance);
+        if (message && message.id !== instance.informationMessageId.battlemetricsPlayers) {
+            /* Store on a fresh read, see sendTrackerMessage. */
+            const fresh = Client.client.getInstance(rustplus.guildId);
+            fresh.informationMessageId.battlemetricsPlayers = message.id;
+            Client.client.setInstance(rustplus.guildId, fresh);
         }
     },
 
@@ -614,7 +658,11 @@ async function sendServerMessageTask(guildId, serverId, state, interaction) {
         instance.channelId.servers, interaction);
 
     if (!interaction && message) {
-        instance.serverList[serverId].messageId = message.id;
-        Client.client.setInstance(guildId, instance);
+        /* Store on a fresh read, see sendTrackerMessage. */
+        const fresh = Client.client.getInstance(guildId);
+        if (fresh.serverList.hasOwnProperty(serverId)) {
+            fresh.serverList[serverId].messageId = message.id;
+            Client.client.setInstance(guildId, fresh);
+        }
     }
 }
