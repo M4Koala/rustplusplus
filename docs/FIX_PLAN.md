@@ -293,22 +293,21 @@ disconnect — one copy frozen, one live. Two cooperating root causes, both fixe
 # startup never touches permissions
 
 ## Grid coordinates were off by one row (and sometimes one column)
-Reported: a shop at the NE corner of U9 in-game was announced as `[V8]`. Two root causes in
-`src/util/map.js`:
-* **Wrong cell size**: 146.25 instead of the game's 146.3 (the constant in the game's
-  decompiled MapHelpers; 1024/7 = 146.28571…, used by some companion tools, was tried first
-  but a live server showed its borders still sit slightly west of the in-game ones). The
-  error accumulates eastward, so positions near a cell border got pushed one column east
-  (U → V).
-* **Wrong anchor/row direction**: the grid was truncated to a "corrected map size" (multiple
-  of the cell size) and rows were counted from the bottom of that truncated square. The
-  in-game grid uses the raw world size with row 0 anchored at the **top**; the partial cells
-  sit in the east-most column and south-most row. On e.g. a 4500 map (remainder ≈112) most
-  of the map was therefore reported one row too far north (9 → 8).
-Fixed: `gridDiameter = 1024/7`, rows = `floor((mapSize - y) / cell)` from the top, columns =
-`floor(x / cell)` from the west, no size correction (`getCorrectedMapSize()` now returns the
-size unchanged and only exists for compatibility). Also applies to the "West of grid N" /
-"North of grid X" labels used for out-of-grid positions such as the Deep Sea.
+Reported: a shop at the NE corner of U9 in-game was announced as `[V8]`. Root cause, nailed
+down by on-map border measurements with the (new) `!grid` command on a live 3750 server:
+**the in-game grid has no fixed cell size**. The game derives the number of cells from the
+nominal ~146.25 cell and then **stretches the cells so a whole number exactly fills the
+map** — the measured 3750 map is exactly 25×25 cells of 150.0 (B/C border measured at
+x=300.0, U/V at x=3150.1, row 8/9 at y=2399.7). Fixed-cell attempts (upstream's truncated
+146.25 grid anchored at the bottom, then 1024/7 and 146.3 anchored at the top) were all off
+for most of the map or near cell borders.
+Fixed in `src/util/map.js`: `numberOfGrids` = upstream's proven count heuristic (round
+mapSize/146.25 down, up when the remainder ≥ 120), `cellSize = mapSize / numberOfGrids`,
+columns = `floor(x / cellSize)` from the west edge, rows = `floor((mapSize - y) / cellSize)`
+with row 0 at the top. No partial edge cells, no "corrected map size"
+(`getCorrectedMapSize()` returns the size unchanged, kept for compatibility). Also applies
+to the "West of grid N" / "North of grid X" labels used for out-of-grid positions such as
+the Deep Sea.
 
 ## Deep Sea detection: vendor names alone were not enough
 The event was detected only via known vendor marker names (≥3 distinct); on live servers the

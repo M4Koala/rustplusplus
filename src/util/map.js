@@ -21,12 +21,26 @@
 const Client = require('../../index.ts');
 
 module.exports = {
-    /* One in-game map grid cell is 146.3 world units (the constant in the game's decompiled
-       MapHelpers, also used by community grid plugins). 146.25 (used upstream) and 1024/7
-       (146.2857..., used by some companion tools) put the cell borders slightly west of the
-       in-game ones, verified on a live server: a shop just west of an in-game border was
-       reported one column too far east with 1024/7. */
-    gridDiameter: 146.3,
+    /* Nominal grid cell size. Only used to derive the number of grid cells of a map — the
+       real cell size is mapSize / numberOfGrids: the in-game grid stretches so that a whole
+       number of cells exactly fills the map, there are no partial edge cells. Verified by
+       on-map border measurements on a live 3750 server: 25 cells of exactly 150.0 each
+       (borders at x=300.0 for B/C and x=3150 for U/V), while every fixed cell size
+       (146.25, 1024/7, 146.3) put the borders in the wrong place. */
+    gridDiameter: 146.25,
+
+    getNumberOfGrids: function (mapSize) {
+        /* The 120 threshold for rounding the cell count up/down matches the long-standing
+           upstream heuristic (its "corrected map size"), which produced the correct cell
+           count — just not the correct cell size/anchoring. */
+        const remainder = mapSize % module.exports.gridDiameter;
+        const count = Math.floor(mapSize / module.exports.gridDiameter);
+        return Math.max(1, (remainder < 120) ? count : count + 1);
+    },
+
+    getGridCellSize: function (mapSize) {
+        return mapSize / module.exports.getNumberOfGrids(mapSize);
+    },
 
     getPos: function (x, y, mapSize, rustplus) {
         const pos = { location: null, monument: null, string: null, x: x, y: y }
@@ -91,21 +105,19 @@ module.exports = {
         return gridPosLetters + gridPosNumber;
     },
 
-    /* The in-game grid is anchored at the top-left of the world: column A starts at the west
-       edge, row 0 at the north edge (y = mapSize). When the world size is not a multiple of
-       the cell size, the partial cells are the east-most column and the south-most row —
-       they still count as their own grid on the in-game map, so no size "correction". */
+    /* The grid covers the map exactly: column A starts at the west edge, row 0 at the north
+       edge (y = mapSize), and the last column/row ends exactly at the opposite edge. */
 
     getGridPosLettersX: function (x, mapSize) {
-        const numberOfGrids = Math.ceil(mapSize / module.exports.gridDiameter);
-        let grid = Math.floor(x / module.exports.gridDiameter);
+        const numberOfGrids = module.exports.getNumberOfGrids(mapSize);
+        let grid = Math.floor(x / module.exports.getGridCellSize(mapSize));
         grid = Math.max(0, Math.min(grid, numberOfGrids - 1));
         return module.exports.numberToLetters(grid + 1);
     },
 
     getGridPosNumberY: function (y, mapSize) {
-        const numberOfGrids = Math.ceil(mapSize / module.exports.gridDiameter);
-        let grid = Math.floor((mapSize - y) / module.exports.gridDiameter);
+        const numberOfGrids = module.exports.getNumberOfGrids(mapSize);
+        let grid = Math.floor((mapSize - y) / module.exports.getGridCellSize(mapSize));
         grid = Math.max(0, Math.min(grid, numberOfGrids - 1));
         return grid;
     },
