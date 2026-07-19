@@ -21,10 +21,12 @@
 const Client = require('../../index.ts');
 
 module.exports = {
-    /* One in-game map grid cell is 1024/7 = 146.28571... world units (the same constant the
-       game and the companion tools use). 146.25 (used upstream) slowly drifts east of the
-       true cell borders and reports the wrong grid near cell edges. */
-    gridDiameter: 1024 / 7,
+    /* One in-game map grid cell is 146.3 world units (the constant in the game's decompiled
+       MapHelpers, also used by community grid plugins). 146.25 (used upstream) and 1024/7
+       (146.2857..., used by some companion tools) put the cell borders slightly west of the
+       in-game ones, verified on a live server: a shop just west of an in-game border was
+       reported one column too far east with 1024/7. */
+    gridDiameter: 146.3,
 
     getPos: function (x, y, mapSize, rustplus) {
         const pos = { location: null, monument: null, string: null, x: x, y: y }

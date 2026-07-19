@@ -295,9 +295,11 @@ disconnect — one copy frozen, one live. Two cooperating root causes, both fixe
 ## Grid coordinates were off by one row (and sometimes one column)
 Reported: a shop at the NE corner of U9 in-game was announced as `[V8]`. Two root causes in
 `src/util/map.js`:
-* **Wrong cell size**: 146.25 instead of the game's 1024/7 = 146.28571… (the constant the
-  companion tools use). The error accumulates eastward, so positions near a cell border got
-  pushed one column east (U → V).
+* **Wrong cell size**: 146.25 instead of the game's 146.3 (the constant in the game's
+  decompiled MapHelpers; 1024/7 = 146.28571…, used by some companion tools, was tried first
+  but a live server showed its borders still sit slightly west of the in-game ones). The
+  error accumulates eastward, so positions near a cell border got pushed one column east
+  (U → V).
 * **Wrong anchor/row direction**: the grid was truncated to a "corrected map size" (multiple
   of the cell size) and rows were counted from the bottom of that truncated square. The
   in-game grid uses the raw world size with row 0 anchored at the **top**; the partial cells
@@ -314,7 +316,11 @@ markers did not match the list, so the event was never detected (`!deepsea` clai
 while the city was open). New second signal, either one activates the event:
 * **Vending machines outside the grid system** (≥2, `DEEP_SEA_MIN_OUTSIDE_GRID_VENDORS`):
   the floating city spawns beyond the map edge (N/W/S/E), where player shops cannot exist —
-  works regardless of vendor names. Location = centroid of all matched markers.
+  works regardless of vendor names.
+No location/direction is printed in the Deep Sea messages: the vendor markers sit at the
+interior zone's off-map position (observed: "West of grid 14" while the entrance was in the
+north), not at the visible entrance, so a derived direction would be misleading.
+(`deepSeaLocation` is still tracked internally in case a real entrance marker is found.)
 The once-per-connection marker diagnostic now tags names with `[outside grid]` so the name
 list can be refined from the logs. Also fixed a broken filter in `updateVendingMachines`
 (`filter(e => e.x !== marker.x) || e.y !== marker.y`) that removed every machine sharing the
