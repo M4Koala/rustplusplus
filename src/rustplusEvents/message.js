@@ -21,6 +21,7 @@
 const CommandHandler = require('../handlers/inGameCommandHandler.js');
 const Constants = require('../util/constants.js');
 const DiscordMessages = require('../discordTools/discordMessages.js');
+const WakeupHandler = require('../handlers/wakeupHandler.js');
 const InGameChatHandler = require('../handlers/inGameChatHandler.js');
 const SmartSwitchGroupHandler = require('../handlers/smartSwitchGroupHandler.js');
 const TeamChatHandler = require("../handlers/teamChatHandler.js");
@@ -189,6 +190,9 @@ async function messageBroadcastEntityChangedSmartAlarm(rustplus, client, message
         if (instance.generalSettings.smartAlarmNotifyInGame) {
             rustplus.sendInGameMessage(`${server.alarms[entityId].name}: ${server.alarms[entityId].message}`);
         }
+
+        WakeupHandler.requestWakeup(client, rustplus, rustplus.guildId,
+            server.alarms[entityId].name, server.alarms[entityId].message);
     }
 
     DiscordMessages.sendSmartAlarmMessage(rustplus.guildId, rustplus.serverId, entityId);

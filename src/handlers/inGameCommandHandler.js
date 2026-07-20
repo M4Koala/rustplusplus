@@ -21,6 +21,7 @@
 const SmartAlarmHandler = require('./smartAlarmHandler.js');
 const SmartSwitchGroupHandler = require('./smartSwitchGroupHandler.js');
 const SmartSwitchHandler = require('./smartSwitchHandler.js');
+const WakeupHandler = require('./wakeupHandler.js');
 
 module.exports = {
     inGameCommandHandler: async function (rustplus, client, message) {
@@ -127,6 +128,10 @@ module.exports = {
             (commandLowerCase.startsWith(`${prefix}${client.intlGet(guildId, 'commandSyntaxNote')} `) ||
                 commandLowerCase === `${prefix}${client.intlGet(guildId, 'commandSyntaxNotes')}`)) {
             rustplus.sendInGameMessage(rustplus.getCommandNote(command));
+        }
+        else if (commandLowerCase === `${prefix}${client.intlGet('en', 'commandSyntaxNo')}` ||
+            commandLowerCase === `${prefix}${client.intlGet(guildId, 'commandSyntaxNo')}`) {
+            rustplus.sendInGameMessage(WakeupHandler.standDown(client, rustplus));
         }
         else if (commandLowerCase === `${prefix}${client.intlGet('en', 'commandSyntaxOffline')}` ||
             commandLowerCase === `${prefix}${client.intlGet(guildId, 'commandSyntaxOffline')}`) {

@@ -30,6 +30,7 @@ const DiscordMessages = require('../discordTools/discordMessages.js');
 const DiscordTools = require('../discordTools/discordTools.js');
 const InstanceUtils = require('../util/instanceUtils.js');
 const Map = require('../util/map.js');
+const WakeupHandler = require('../handlers/wakeupHandler.js');
 const Scrape = require('../util/scrape.js');
 
 module.exports = async (client, guild) => {
@@ -477,6 +478,9 @@ async function alarmAlarm(client, guild, title, message, body) {
         server.alarms[entityId].lastTrigger = Math.floor(new Date() / 1000);
         client.setInstance(guild.id, instance);
         await DiscordMessages.sendSmartAlarmTriggerMessage(guild.id, serverId, entityId);
+        /* Alarm on a non-connected server, no in-game presence there to stand it down. */
+        WakeupHandler.requestWakeup(client, null, guild.id,
+            server.alarms[entityId].name, server.alarms[entityId].message);
         client.log(client.intlGet(null, 'infoCap'), `${title}: ${message}`);
     }
 }
@@ -502,6 +506,7 @@ async function alarmRaidAlarm(client, guild, title, message, body) {
     if (rustplus && (serverId === rustplus.serverId)) {
         await DiscordMessages.sendMessage(guild.id, content, null, instance.channelId.activity);
         rustplus.sendInGameMessage(`${title}: ${message}`);
+        WakeupHandler.requestWakeup(client, rustplus, guild.id, title, message);
     }
 
     client.log(client.intlGet(null, 'infoCap'), `${title} ${message}`);

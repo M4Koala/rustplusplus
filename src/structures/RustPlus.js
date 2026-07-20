@@ -82,6 +82,10 @@ class RustPlus extends RustPlusLib {
         this.inGameChatQueue = [];
         this.inGameChatTimeout = null;
 
+        /* Phone wake-up (ntfy) variables */
+        this.wakeupGraceTimeout = null;     /* Timeout id while a wake-up countdown is running. */
+        this.wakeupMutedUntil = null;       /* Epoch ms until which wake-ups are muted via the stand-down command. */
+
         /* Stores found vending machine items that are subscribed to */
         this.foundSubscriptionItems = { all: [], buy: [], sell: [] };
 

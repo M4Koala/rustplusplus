@@ -68,7 +68,11 @@ module.exports = (client, guild) => {
                 discordIds: [],
                 steamIds: []
             },
-            aliases: []
+            aliases: [],
+            ntfy: {
+                topic: null,
+                server: null
+            }
         };
     }
     else {
@@ -187,6 +191,12 @@ module.exports = (client, guild) => {
         if (!instance.blacklist.hasOwnProperty('discordIds')) instance.blacklist['discordIds'] = [];
         if (!instance.blacklist.hasOwnProperty('steamIds')) instance.blacklist['steamIds'] = [];
         if (!instance.hasOwnProperty('aliases')) instance.aliases = [];
+        if (!instance.hasOwnProperty('ntfy')) instance.ntfy = {
+            topic: null,
+            server: null
+        }
+        if (!instance.ntfy.hasOwnProperty('topic')) instance.ntfy['topic'] = null;
+        if (!instance.ntfy.hasOwnProperty('server')) instance.ntfy['server'] = null;
 
         for (const serverId of Object.keys(instance.serverList)) {
             if (!Object.keys(instance.serverListLite).includes(serverId)) {

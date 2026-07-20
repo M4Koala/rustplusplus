@@ -31,6 +31,7 @@ Slash Command | Description
 [**/upkeep**](commands.md#upkeep) | Get the upkeep cost of an item.
 [**/uptime**](commands.md#uptime) | Display uptime of the bot and server.
 [**/voice**](commands.md#voice) | Operations on Voice Feature.
+[**/wakeup**](commands.md#wakeup) | Phone wake-up alerts (via ntfy) when a Smart Alarm is triggered.
 
 
 ## **/alarm**
@@ -342,6 +343,22 @@ Subcommand | Options | Description | Required
 ![Discord Slash Command uptime Image](images/slash_commands/voice.png)
 
 
+## **/wakeup**
+
+> **Phone wake-up alerts (via [ntfy](https://ntfy.sh)) when a Smart Alarm is triggered.** The bot publishes a max priority ntfy notification on every Smart Alarm trigger (and raid-alarm plugin alerts). Anyone subscribed to the topic in the ntfy app gets alerted. On Android, enable *Settings → Advanced → Insistent max priority* in the ntfy app and allow it to override Do Not Disturb, then the alert rings continuously like an alarm clock until dismissed — even at night. Pick a hard-to-guess topic name, anyone who knows it can subscribe.
+>
+> If a teammate is online in-game when the alarm triggers, the wake-up is delayed by 60 seconds and announced in team chat first, so the teammate can stand it down with [`!no`](commands.md#no) (accidental trigger, trolling). With nobody online it is sent immediately.
+
+Subcommand | Options | Description | Required
+---------- | ------- | ----------- | --------
+`set` | &nbsp; | Set the ntfy topic to send wake-up alerts to. | &nbsp;
+&nbsp; | `topic` | The ntfy topic name (letters, numbers, - and _ only). | `True`
+&nbsp; | `server` | The ntfy server URL (default: https://ntfy.sh). | `False`
+`test` | &nbsp; | Send a test wake-up alert right now. | &nbsp;
+`show` | &nbsp; | Show the current wake-up alert configuration. | &nbsp;
+`clear` | &nbsp; | Disable wake-up alerts. | &nbsp;
+
+
 # In-Game Commands
 
 In-Game Command | Description
@@ -363,6 +380,7 @@ In-Game Command | Description
 [**marker**](commands.md#marker) | Set custom markers anywhere on the map.
 [**market**](commands.md#market-ingame) | Search for items in vending machines or subscribe/unsubscribe to items.
 [**mute**](commands.md#mute) | Mute the bot from the In-Game Team Chat.
+[**no**](commands.md#no) | Cancel a pending phone wake-up and mute wake-ups for 5 minutes.
 [**note/notes**](commands.md#notenotes) | Create notes about meaningful things.
 [**offline**](commands.md#offline) | Get the currently offline players in your team.
 [**online**](commands.md#online) | Get the currently online players in your team.
@@ -563,6 +581,12 @@ Subcommand | Description | Required
 `remove` | Remove a note (`!note remove <id>`). | `False`
 
 ![In-Game Command notes Image](images/ingame_commands/notes_ingame.png)
+
+
+## **no**
+
+> **Cancel a pending phone wake-up and mute wake-ups for 5 minutes.** When a Smart Alarm triggers while a teammate is online in-game, the phone wake-up (see [/wakeup](commands.md#wakeup)) is delayed by 60 seconds and announced in team chat. Running `!no` within that window cancels it and mutes further wake-ups for 5 minutes — useful when you set off your own alarm or someone is trolling it.
+<br>Command: `!no`
 
 
 ## **offline**

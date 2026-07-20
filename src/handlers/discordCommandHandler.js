@@ -20,6 +20,7 @@
 
 const DiscordMessages = require('../discordTools/discordMessages.js');
 const DiscordTools = require('../discordTools/discordTools');
+const WakeupHandler = require('./wakeupHandler.js');
 
 module.exports = {
     discordCommandHandler: async function (rustplus, client, message) {
@@ -115,6 +116,10 @@ module.exports = {
             (commandLowerCase.startsWith(`${prefix}${client.intlGet(guildId, 'commandSyntaxNote')} `) ||
                 commandLowerCase === `${prefix}${client.intlGet(guildId, 'commandSyntaxNotes')}`)) {
             response = rustplus.getCommandNote(command);
+        }
+        else if (commandLowerCase === `${prefix}${client.intlGet('en', 'commandSyntaxNo')}` ||
+            commandLowerCase === `${prefix}${client.intlGet(guildId, 'commandSyntaxNo')}`) {
+            response = WakeupHandler.standDown(client, rustplus);
         }
         else if (commandLowerCase === `${prefix}${client.intlGet('en', 'commandSyntaxOffline')}` ||
             commandLowerCase === `${prefix}${client.intlGet(guildId, 'commandSyntaxOffline')}`) {
