@@ -21,7 +21,8 @@
 const Ntfy = require('../util/ntfy.js');
 
 const WAKEUP_GRACE_TIME_SECONDS = 60;   /* Time an online teammate has to stand down the wake-up. */
-const WAKEUP_MUTE_TIME_MINUTES = 5;     /* How long the stand-down command mutes wake-ups. */
+const WAKEUP_MUTE_TIME_MINUTES = 5;     /* Default mute duration when the stand-down command is used bare. */
+const WAKEUP_MUTE_TIME_MAX_MINUTES = 1440; /* Cap on a custom duration, a fat-fingered digit shouldn't mute wake-ups for days. */
 
 module.exports = {
     /* Request a phone wake-up for a triggered alarm. If a teammate is online in-game, the wake-up
@@ -69,18 +70,31 @@ module.exports = {
         }, WAKEUP_GRACE_TIME_SECONDS * 1000);
     },
 
-    /* The in-game stand-down command: cancel a pending wake-up and mute wake-ups for a while.
-       Returns the in-game response message. */
-    standDown: function (client, rustplus) {
+    /* The in-game/discord stand-down command: cancel a pending wake-up and mute wake-ups for a
+       while. `command` is the raw command text, e.g. "!no" or "!no 20" for a custom duration in
+       minutes (defaults to WAKEUP_MUTE_TIME_MINUTES, invalid or missing numbers fall back to the
+       default). Returns the response message. */
+    standDown: function (client, rustplus, command) {
         const wasPending = rustplus.wakeupGraceTimeout !== null;
         if (wasPending) {
             clearTimeout(rustplus.wakeupGraceTimeout);
             rustplus.wakeupGraceTimeout = null;
         }
-        rustplus.wakeupMutedUntil = Date.now() + WAKEUP_MUTE_TIME_MINUTES * 60 * 1000;
+
+        let muteMinutes = WAKEUP_MUTE_TIME_MINUTES;
+        if (command) {
+            const words = command.trim().split(/\s+/);
+            const arg = words[words.length - 1];
+            const parsed = parseInt(arg, 10);
+            if (String(parsed) === arg && parsed > 0) {
+                muteMinutes = Math.min(parsed, WAKEUP_MUTE_TIME_MAX_MINUTES);
+            }
+        }
+
+        rustplus.wakeupMutedUntil = Date.now() + muteMinutes * 60 * 1000;
 
         return client.intlGet(rustplus.guildId, wasPending ? 'wakeupStoodDown' : 'wakeupMuted', {
-            minutes: WAKEUP_MUTE_TIME_MINUTES
+            minutes: muteMinutes
         });
     },
 }

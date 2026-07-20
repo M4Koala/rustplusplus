@@ -380,7 +380,7 @@ In-Game Command | Description
 [**marker**](commands.md#marker) | Set custom markers anywhere on the map.
 [**market**](commands.md#market-ingame) | Search for items in vending machines or subscribe/unsubscribe to items.
 [**mute**](commands.md#mute) | Mute the bot from the In-Game Team Chat.
-[**no**](commands.md#no) | Cancel a pending phone wake-up and mute wake-ups for 5 minutes.
+[**no**](commands.md#no) | Cancel a pending phone wake-up and mute wake-ups for 5 minutes (or a custom duration).
 [**note/notes**](commands.md#notenotes) | Create notes about meaningful things.
 [**offline**](commands.md#offline) | Get the currently offline players in your team.
 [**online**](commands.md#online) | Get the currently online players in your team.
@@ -585,8 +585,8 @@ Subcommand | Description | Required
 
 ## **no**
 
-> **Cancel a pending phone wake-up and mute wake-ups for 5 minutes.** When a Smart Alarm triggers while a teammate is online in-game, the phone wake-up (see [/wakeup](commands.md#wakeup)) is delayed by 60 seconds and announced in team chat. Running `!no` within that window cancels it and mutes further wake-ups for 5 minutes — useful when you set off your own alarm or someone is trolling it.
-<br>Command: `!no`
+> **Cancel a pending phone wake-up and mute wake-ups for 5 minutes (or a custom duration).** When a Smart Alarm triggers while a teammate is online in-game, the phone wake-up (see [/wakeup](commands.md#wakeup)) is delayed by 60 seconds and announced in team chat. Running `!no` within that window cancels it and mutes further wake-ups for 5 minutes — useful when you set off your own alarm or someone is trolling it. Add a number of minutes, e.g. `!no 20`, to mute for a custom duration instead (capped at 1440 minutes / 24h).
+<br>Command: `!no [minutes]`
 
 
 ## **offline**
