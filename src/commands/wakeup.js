@@ -123,6 +123,9 @@ module.exports = {
                         topic: instance.ntfy.topic,
                         server: instance.ntfy.server ?? 'https://ntfy.sh'
                     });
+                    if (!instance.generalSettings.wakeupCallEnabled) {
+                        str += ' ' + client.intlGet(guildId, 'wakeupShowDisabledViaSettings');
+                    }
                 }
                 await client.interactionEditReply(interaction, DiscordEmbeds.getActionInfoEmbed(0, str));
             } break;

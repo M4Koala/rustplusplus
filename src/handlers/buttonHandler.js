@@ -234,6 +234,23 @@ module.exports = async (client, interaction) => {
                 instance.generalSettings.smartAlarmNotifyInGame)]
         });
     }
+    else if (interaction.customId === 'WakeupCallEnabled') {
+        instance.generalSettings.wakeupCallEnabled = !instance.generalSettings.wakeupCallEnabled;
+        client.setInstance(guildId, instance);
+
+        if (rustplus) rustplus.generalSettings.wakeupCallEnabled = instance.generalSettings.wakeupCallEnabled;
+
+        client.log(client.intlGet(null, 'infoCap'), client.intlGet(null, 'buttonValueChange', {
+            id: `${verifyId}`,
+            value: `${instance.generalSettings.wakeupCallEnabled}`
+        }));
+
+        await client.interactionUpdate(interaction, {
+            components: [DiscordButtons.getWakeupCallEnabledButton(
+                guildId,
+                instance.generalSettings.wakeupCallEnabled)]
+        });
+    }
     else if (interaction.customId === 'SmartSwitchNotifyInGameWhenChangedFromDiscord') {
         instance.generalSettings.smartSwitchNotifyInGameWhenChangedFromDiscord =
             !instance.generalSettings.smartSwitchNotifyInGameWhenChangedFromDiscord;

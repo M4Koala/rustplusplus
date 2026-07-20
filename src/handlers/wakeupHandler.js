@@ -30,6 +30,11 @@ module.exports = {
     requestWakeup: function (client, rustplus, guildId, title, message) {
         if (!Ntfy.isConfigured(guildId)) return;
 
+        /* Fetched fresh rather than trusting rustplus.generalSettings, since rustplus can be
+           null (alarm on a server the bot isn't currently connected to). */
+        const instance = client.getInstance(guildId);
+        if (!instance.generalSettings.wakeupCallEnabled) return;
+
         if (rustplus && rustplus.wakeupMutedUntil !== null) {
             if (Date.now() < rustplus.wakeupMutedUntil) {
                 client.log(client.intlGet(null, 'infoCap'),
