@@ -817,7 +817,7 @@
     "voiceCap": "VOICE",
     "wakeupCallEnabledExtendSetting": "- When disabled, no phone wake-up calls will be sent, but the configured ntfy topic is kept.\n- Use /wakeup show, /wakeup test and /wakeup clear regardless of this setting.",
     "wakeupCleared": "Wake-up alerts disabled.",
-    "wakeupGraceWarning": "{title} triggered! Phone wake-up in {seconds}s. Type {command} to cancel and mute wake-ups for {minutes} min.",
+    "wakeupGraceWarning": "{title} triggered! Phone wake-up in {seconds}s. Type {command} to cancel ({minutes}m mute, add a number for custom).",
     "wakeupInvalidServer": "Invalid server URL, it must start with http:// or https://.",
     "wakeupInvalidTopic": "Invalid topic name, use only letters, numbers, dashes and underscores (max 64 characters).",
     "wakeupMuted": "Phone wake-ups muted for {minutes} min.",
