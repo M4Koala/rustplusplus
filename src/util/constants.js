@@ -61,6 +61,9 @@ module.exports = {
     MAX_STATE_STASH_AGE_MS: 2 * 60 * 60 * 1000, /* Discard stashed state after 2 hours offline. */
     MAX_TIME_LEARNING_GAP_SECONDS: 15 * 60, /* Max offline gap to compensate in-game time learning for. */
 
+    /* Battlemetrics API failure logging */
+    BATTLEMETRICS_ERROR_LOG_THROTTLE_MS: 15 * 60 * 1000, /* Log a repeating API failure at most this often. */
+
     /* Deep Sea event. Detected via the floating city vendor vending machine map markers. */
     DEEP_SEA_VENDOR_NAMES: [
         'Attire Shop Vendor',
@@ -88,6 +91,7 @@ module.exports = {
     ONLINE_EMOJI: ':green_circle:',
     OFFLINE_EMOJI: ':red_circle:',
     NOT_FOUND_EMOJI: ':x:',
+    WARNING_EMOJI: ':warning:',
     AFK_EMOJI: ':yellow_circle:',
     ALIVE_EMOJI: ':nerd:',
     SLEEPING_EMOJI: ':sleeping:',

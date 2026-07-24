@@ -21,8 +21,10 @@
 const Axios = require('axios');
 
 const Client = require('../../index.ts');
+const Config = require('../../config');
+const Constants = require('../util/constants.js');
 const RandomUsernames = require('../staticFiles/RandomUsernames.json');
-const Utils = require = require('../util/utils.js');
+const Utils = require('../util/utils.js');
 
 const SERVER_LOG_SIZE = 1000;
 const CONNECTION_LOG_SIZE = 1000;
@@ -45,6 +47,9 @@ class Battlemetrics {
         this._ready = false;
         this._updatedAt = null;
         this._lastUpdateSuccessful = null;
+        this._lastError = null;         /* {status, detail, time} of the most recent failed API request, in-memory only. */
+        this._unavailableSince = null;  /* ISO time the current run of failures started, null while updates succeed. */
+        this._lastErrorLogTime = null;  /* Throttle bookkeeping for #logApiError, in-memory only. */
         this._rustmapsAvailable = null;
         this._streamerMode = true; /* Until proven otherwise */
         this._serverLog = [];
@@ -129,6 +134,10 @@ class Battlemetrics {
     set updatedAt(updatedAt) { this._updatedAt = updatedAt; }
     get lastUpdateSuccessful() { return this._lastUpdateSuccessful; }
     set lastUpdateSuccessful(lastUpdateSuccessful) { this._lastUpdateSuccessful = lastUpdateSuccessful; }
+    get lastError() { return this._lastError; }
+    set lastError(lastError) { this._lastError = lastError; }
+    get unavailableSince() { return this._unavailableSince; }
+    set unavailableSince(unavailableSince) { this._unavailableSince = unavailableSince; }
     get rustmapsAvailable() { return this._rustmapsAvailable; }
     set rustmapsAvailable(rustmapsAvailable) { this._rustmapsAvailable = rustmapsAvailable; }
     get streamerMode() { return this._streamerMode; }
@@ -217,12 +226,62 @@ class Battlemetrics {
      *  @return {object} The response from Axios library.
      */
     async #request(api_call) {
+        const config = {};
+        if (Config.battlemetrics.token !== '') {
+            config.headers = { Authorization: `Bearer ${Config.battlemetrics.token}` };
+        }
+
         try {
-            return await Axios.get(api_call);
+            return await Axios.get(api_call, config);
         }
         catch (e) {
+            const response = e.response;
+            const body = response ? response.data : null;
+            const detail = body ? (body.detail ??
+                (Array.isArray(body.errors) && body.errors[0] ? body.errors[0].detail : null)) : null;
+
+            this.lastError = {
+                status: response ? response.status : null,
+                detail: detail ?? e.message,
+                time: new Date().toISOString()
+            };
+
             return {};
         }
+    }
+
+    /**
+     *  Log a failed Battlemetrics API request, throttled so a persistent outage doesn't spam the
+     *  log every poll interval.
+     *  @param {string} api_call The request api call string that failed.
+     */
+    #logApiError(api_call) {
+        const now = Date.now();
+        if (this._lastErrorLogTime !== null &&
+            (now - this._lastErrorLogTime) < Constants.BATTLEMETRICS_ERROR_LOG_THROTTLE_MS) {
+            return;
+        }
+        this._lastErrorLogTime = now;
+
+        const status = this.lastError && this.lastError.status !== null ? this.lastError.status : '?';
+        const detail = this.lastError && this.lastError.detail ? this.lastError.detail : '';
+
+        Client.client.log(Client.client.intlGet(null, 'errorCap'),
+            Client.client.intlGet(null, 'battlemetricsApiRequestFailedDetailed',
+                { api_call: api_call, status: `${status}`, detail: detail }), 'error');
+    }
+
+    /**
+     *  Reset the throttled-error-log state and clear any stored error after a successful request.
+     */
+    #clearApiError() {
+        if (this._lastErrorLogTime !== null) {
+            Client.client.log(Client.client.intlGet(null, 'infoCap'),
+                Client.client.intlGet(null, 'battlemetricsRecovered', { server: `${this.id}` }));
+        }
+        this._lastErrorLogTime = null;
+        this.lastError = null;
+        this.unavailableSince = null;
     }
 
     /**
@@ -369,6 +428,24 @@ class Battlemetrics {
         return [parseInt(diffMs / 1000), `${hoursStr}:${minutesStr}`];
     }
 
+    /**
+     *  Get the timestamp a player's current online session started. Prefers the newest login
+     *  event in the player's connection log (a real session start) over Battlemetrics'
+     *  'updatedAt' (when the player record was last touched, not necessarily a login).
+     *  @param {string} playerId The id of the player.
+     *  @return {string|null} ISO timestamp, or null if neither is available.
+     */
+    #getOnlineSinceTimestamp(playerId) {
+        const player = this.players[playerId];
+        if (!player) return null;
+
+        /* connectionLog is newest-first (unshift). */
+        const login = player.connectionLog.find(e => e.type === 0);
+        if (login) return login.time;
+
+        return player.updatedAt ?? null;
+    }
+
     /***********************************************************************************
      *  Public methods
      **********************************************************************************/
@@ -384,11 +461,11 @@ class Battlemetrics {
         const response = await this.#request(api_call);
 
         if (response.status !== 200) {
-            Client.client.log(Client.client.intlGet(null, 'errorCap'),
-                Client.client.intlGet(null, 'battlemetricsApiRequestFailed', { api_call: api_call }), 'error');
+            this.#logApiError(api_call);
             return null;
         }
 
+        this.#clearApiError();
         return response.data;
     }
 
@@ -443,10 +520,11 @@ class Battlemetrics {
         const response = await this.#request(search);
 
         if (response.status !== 200) {
-            Client.client.log(Client.client.intlGet(null, 'errorCap'),
-                Client.client.intlGet(null, 'battlemetricsApiRequestFailed', { api_call: search }), 'error');
+            this.#logApiError(search);
             return null;
         }
+
+        this.#clearApiError();
 
         /* Find the correct server. */
         for (const server of response.data.data) {
@@ -484,8 +562,8 @@ class Battlemetrics {
 
         if (!data) {
             this.lastUpdateSuccessful = false;
-            Client.client.log(Client.client.intlGet(null, 'errorCap'),
-                Client.client.intlGet(null, 'battlemetricsFailedToUpdate', { server: this.id }), 'error');
+            if (this.unavailableSince === null) this.unavailableSince = new Date().toISOString();
+            /* The failed request already logged the detailed, throttled error via #logApiError. */
             return false;
         }
 
@@ -752,12 +830,12 @@ class Battlemetrics {
      *  @return {Array} index 0: seconds online, index 1: The formatted online time of a player.
      */
     getOnlineTime(playerId) {
-        if (!this.lastUpdateSuccessful || !this.players.hasOwnProperty(playerId) ||
-            !this.players[playerId]['updatedAt']) {
+        if (!this.lastUpdateSuccessful || !this.players.hasOwnProperty(playerId)) {
             return null;
         }
 
-        return this.#formatTime(this.players[playerId]['updatedAt']);
+        const since = this.#getOnlineSinceTimestamp(playerId);
+        return since !== null ? this.#formatTime(since) : null;
     }
 
     /**
@@ -781,7 +859,8 @@ class Battlemetrics {
     getOnlinePlayerIdsOrderedByTime() {
         const unordered = [];
         for (const playerId of this.onlinePlayers) {
-            const seconds = this.#formatTime(this.players[playerId]['updatedAt']);
+            const since = this.#getOnlineSinceTimestamp(playerId);
+            const seconds = since !== null ? this.#formatTime(since) : null;
             unordered.push([seconds !== null ? seconds[0] : 0, playerId]);
         }
         let ordered = unordered.sort(function (a, b) { return b[0] - a[0] })
@@ -800,20 +879,6 @@ class Battlemetrics {
         }
         let ordered = unordered.sort(function (a, b) { return a[0] - b[0] })
         return ordered.map(e => e[1]);
-    }
-
-    /**
-     *  Get the offline time from a player.
-     *  @param {string} playerId The id of the player to get offline time from.
-     *  @return {Array} index 0: seconds offline, index 1: The formatted offline time of a player.
-     */
-    getOfflineTime(playerId) {
-        if (!this.lastUpdateSuccessful || !this.players.hasOwnProperty(playerId) ||
-            !this.players[playerId]['logoutDate']) {
-            return null;
-        }
-
-        return this.#formatTime(this.players[playerId]['logoutDate']);
     }
 }
 

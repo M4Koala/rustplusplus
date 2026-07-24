@@ -35,5 +35,11 @@ module.exports = {
         /* If false, the bot never touches channel/category permission overwrites, so manually
            configured permissions on the rustplusplus category/channels are left alone. */
         manageChannelPermissions: (process.env.RPP_MANAGE_CHANNEL_PERMISSIONS ?? 'true') !== 'false',
+    },
+    battlemetrics: {
+        /* Personal access token from https://www.battlemetrics.com/developers, required since
+           Battlemetrics started rejecting unauthenticated API requests. Empty = requests are sent
+           without an Authorization header (Battlemetrics features will be unavailable). */
+        token: process.env.RPP_BATTLEMETRICS_TOKEN || '',
     }
 };
