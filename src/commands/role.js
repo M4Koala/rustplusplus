@@ -60,6 +60,8 @@ module.exports = {
 
 		await interaction.deferReply({ ephemeral: true });
 
+		const previousRole = instance.role;
+
 		let role = null;
 		switch (interaction.options.getSubcommand()) {
 			case 'set': {
@@ -88,7 +90,13 @@ module.exports = {
 		if (guild) {
 			const category = await require('../discordTools/SetupGuildCategory')(client, guild);
 			await require('../discordTools/SetupGuildChannels')(client, guild, category);
-			await PermissionHandler.resetPermissionsAllChannels(client, guild);
+
+			/* The previous role's overwrite (if it changed) is no longer relevant - remove it
+			   instead of leaving it behind, without touching any other manually configured
+			   overwrites on these channels. */
+			const removedTargetIds = (previousRole !== null && previousRole !== instance.role) ?
+				[previousRole] : [];
+			await PermissionHandler.resetPermissionsAllChannels(client, guild, removedTargetIds);
 		}
 
 		if (interaction.options.getSubcommand() === 'set') {

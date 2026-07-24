@@ -91,7 +91,59 @@ module.exports = {
         return perms;
     },
 
-    resetPermissionsAllChannels: async function (client, guild) {
+    /**
+     *  Build the (target id, PermissionOverwriteOptions) pairs the bot needs on a channel:
+     *  @everyone, the configured access role (if any), and each blacklisted Discord id. Meant
+     *  for permissionOverwrites.edit(), which only touches the given target's overwrite and
+     *  leaves every other target's overwrite (a manually added role/user) untouched - unlike
+     *  permissionOverwrites.set(), which replaces the entire overwrite list.
+     *  @param {object} client The Discord client.
+     *  @param {object} guild The guild.
+     *  @param {bool} permissionWrite True if the role/@everyone should be allowed to send messages.
+     *  @return {Array} Array of { id, options } targets.
+     */
+    getPermissionEditTargets: function (client, guild, permissionWrite = false) {
+        const instance = client.getInstance(guild.id);
+
+        const targets = [];
+
+        if (instance.role !== null) {
+            targets.push({
+                id: guild.roles.everyone.id,
+                options: { ViewChannel: false, SendMessages: false }
+            });
+            targets.push({
+                id: instance.role,
+                options: { ViewChannel: true, SendMessages: permissionWrite }
+            });
+        }
+        else {
+            targets.push({
+                id: guild.roles.everyone.id,
+                options: { ViewChannel: true, SendMessages: permissionWrite }
+            });
+        }
+
+        for (const discordId of instance.blacklist['discordIds']) {
+            targets.push({
+                id: discordId,
+                options: { ViewChannel: false, SendMessages: false }
+            });
+        }
+
+        return targets;
+    },
+
+    /**
+     *  Apply the bot-managed permission targets (@everyone, access role, blacklist) to the
+     *  category and every known channel, editing each target's overwrite in place instead of
+     *  replacing the whole list - so manually added overwrites for other roles/users survive.
+     *  @param {object} client The Discord client.
+     *  @param {object} guild The guild.
+     *  @param {Array} removedTargetIds Ids whose overwrite should be deleted entirely (e.g. the
+     *      previous access role after /role changes it, or a user removed from the blacklist).
+     */
+    resetPermissionsAllChannels: async function (client, guild, removedTargetIds = []) {
         if (!Config.discord.manageChannelPermissions) return;
 
         const instance = client.getInstance(guild.id);
@@ -100,13 +152,8 @@ module.exports = {
 
         const category = await DiscordTools.getCategoryById(guild.id, instance.channelId.category);
         if (category) {
-            const perms = module.exports.getPermissionsReset(client, guild);
-            try {
-                await category.permissionOverwrites.set(perms);
-            }
-            catch (e) {
-                /* Ignore */
-            }
+            await module.exports.applyPermissionTargets(category,
+                module.exports.getPermissionEditTargets(client, guild), removedTargetIds);
         }
 
         for (const [name, id] of Object.entries(instance.channelId)) {
@@ -114,13 +161,68 @@ module.exports = {
 
             const channel = DiscordTools.getTextChannelById(guild.id, id);
             if (channel) {
-                const perms = module.exports.getPermissionsReset(client, guild, writePerm);
-                try {
-                    await channel.permissionOverwrites.set(perms);
-                }
-                catch (e) {
-                    /* Ignore */
-                }
+                await module.exports.applyPermissionTargets(channel,
+                    module.exports.getPermissionEditTargets(client, guild, writePerm), removedTargetIds);
+            }
+        }
+    },
+
+    /**
+     *  Edit each target's overwrite on a channel/category, then delete the overwrite for any
+     *  removedTargetIds. Each call is independently try/caught so one stale/invalid id (a
+     *  deleted role, a member who left) can't stop the rest from being applied.
+     *  @param {object} channelOrCategory The channel or category to edit overwrites on.
+     *  @param {Array} targets Array of { id, options } as returned by getPermissionEditTargets.
+     *  @param {Array} removedTargetIds Ids whose overwrite should be deleted entirely.
+     */
+    applyPermissionTargets: async function (channelOrCategory, targets, removedTargetIds = []) {
+        for (const target of targets) {
+            try {
+                await channelOrCategory.permissionOverwrites.edit(target.id, target.options);
+            }
+            catch (e) {
+                /* Ignore */
+            }
+        }
+
+        for (const id of removedTargetIds) {
+            try {
+                await channelOrCategory.permissionOverwrites.delete(id);
+            }
+            catch (e) {
+                /* Ignore */
+            }
+        }
+    },
+
+    /**
+     *  Non-destructively hide a channel/category from @everyone (and the access role, if set)
+     *  by editing just those two overwrites, instead of replacing the whole overwrite list.
+     *  Used where the bot used to fully lock a category down before rebuilding it.
+     *  @param {object} client The Discord client.
+     *  @param {object} guild The guild.
+     *  @param {object} channelOrCategory The channel or category to hide.
+     */
+    hidePermissions: async function (client, guild, channelOrCategory) {
+        if (!Config.discord.manageChannelPermissions) return;
+        if (!channelOrCategory) return;
+
+        const instance = client.getInstance(guild.id);
+        const deny = { ViewChannel: false, SendMessages: false };
+
+        try {
+            await channelOrCategory.permissionOverwrites.edit(guild.roles.everyone.id, deny);
+        }
+        catch (e) {
+            /* Ignore */
+        }
+
+        if (instance.role !== null) {
+            try {
+                await channelOrCategory.permissionOverwrites.edit(instance.role, deny);
+            }
+            catch (e) {
+                /* Ignore */
             }
         }
     },

@@ -171,7 +171,9 @@ module.exports = {
 							instance.blacklist['discordIds'].filter(e => e !== discordUser.id)
 						client.setInstance(guildId, instance);
 
-						await PermissionHandler.resetPermissionsAllChannels(client, guild);
+						/* The user is no longer blacklisted - remove their deny overwrite instead
+						   of leaving it behind. */
+						await PermissionHandler.resetPermissionsAllChannels(client, guild, [discordUser.id]);
 
 						str += client.intlGet(guildId, 'userRemovedFromBlacklist', {
 							user: `${discordUser.username} (${discordUser.id})`
