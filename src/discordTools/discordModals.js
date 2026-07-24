@@ -109,6 +109,12 @@ module.exports = {
                 label: Client.client.intlGet(guildId, 'customCommand'),
                 value: entity.command,
                 style: Discord.TextInputStyle.Short
+            })),
+            new Discord.ActionRowBuilder().addComponents(TextInput.getTextInput({
+                customId: 'SmartSwitchPulse',
+                label: Client.client.intlGet(guildId, 'smartSwitchEditPulseLabel'),
+                value: `${entity.pulseSeconds ?? 0}`,
+                style: Discord.TextInputStyle.Short
             }))
         );
 

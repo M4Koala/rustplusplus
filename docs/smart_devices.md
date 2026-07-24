@@ -13,7 +13,9 @@ It is possible to change the display image for all the different Smart Devices b
 
 The image above is what a paired Smart Switch looks like in Discord. In this case the Smart Switch is called `Switch` and is located at E16. All Smart Devices have an Entity Id which is used to identify it. The Custom Command for this switch is `!sw` which can be used from the in-game teamchat.
 <br><br>
-The Smart Switch can be turned ON/OFF by clicking the `TURN ON` / `TURN OFF` button at the bottom. By clicking on the `EDIT` button, you can edit things such as the `Name` and the `Custom Command` for the Smart Switch. If the `AUTO SETTING` is set to either `AUTO-ON-PROXIMITY` or `AUTO-OFF-PROXIMITY`, there will be a proximity setting available to edit. The proximity setting is used to turn the switch ON/OFF when a teammate is within the proximity of the Smart Switch. To remove the Smart Switch, just click the trashcan button.
+The Smart Switch can be turned ON/OFF by clicking the `TURN ON` / `TURN OFF` button at the bottom. By clicking on the `EDIT` button, you can edit things such as the `Name`, the `Custom Command` and the `Pulse Seconds` for the Smart Switch. If the `AUTO SETTING` is set to either `AUTO-ON-PROXIMITY` or `AUTO-OFF-PROXIMITY`, there will be a proximity setting available to edit. The proximity setting is used to turn the switch ON/OFF when a teammate is within the proximity of the Smart Switch. To remove the Smart Switch, just click the trashcan button.
+<br><br>
+`Pulse Seconds` (0 by default = disabled) makes every manual activation of the switch - the Discord `TURN ON`/`TURN OFF` buttons or the plain in-game `!sw`/`!sw on`/`!sw off` commands - automatically flip back to its previous state after that many seconds, e.g. for a garage door controller. It works independently of the `AUTO SETTING`. An explicit time argument (`!sw on 30s`) always overrides the pulse setting for that activation. Pulse does not apply to Smart Switch Groups.
 <br><br>
 There are a few auto settings for Smart Switches:
 - **OFF** - Smart Switch work as normal.

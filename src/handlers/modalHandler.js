@@ -114,6 +114,13 @@ module.exports = async (client, interaction) => {
         catch (e) {
             smartSwitchProximity = null;
         }
+        let smartSwitchPulse = null;
+        try {
+            smartSwitchPulse = parseInt(interaction.fields.getTextInputValue('SmartSwitchPulse'));
+        }
+        catch (e) {
+            smartSwitchPulse = null;
+        }
 
         if (!server || (server && !server.switches.hasOwnProperty(ids.entityId))) {
             interaction.deferUpdate();
@@ -129,6 +136,10 @@ module.exports = async (client, interaction) => {
 
         if (smartSwitchProximity !== null && smartSwitchProximity >= 0) {
             server.switches[ids.entityId].proximity = smartSwitchProximity;
+        }
+
+        if (smartSwitchPulse !== null && smartSwitchPulse >= 0) {
+            server.switches[ids.entityId].pulseSeconds = smartSwitchPulse;
         }
         client.setInstance(guildId, instance);
 
@@ -379,7 +390,7 @@ module.exports = async (client, interaction) => {
             tracker.players = tracker.players.filter(e => e.steamId !== id);
         }
         else {
-            tracker.players = tracker.players.filter(e => e.playerId !== id || e.steamId !== null);
+            tracker.players = tracker.players.filter(e => e.playerId !== id);
         }
         client.setInstance(interaction.guildId, instance);
 

@@ -456,12 +456,15 @@ module.exports = {
             status: active ? onCap : offCap
         });
 
-        if (timeSeconds === null) {
+        /* An explicit time argument (e.g. 'on 30s') always overrides the switch's pulse setting. */
+        const revertSeconds = timeSeconds !== null ? timeSeconds : (switches[entityId].pulseSeconds ?? 0);
+
+        if (revertSeconds <= 0) {
             rustplus.sendInGameMessage(str);
             return true;
         }
 
-        const time = Timer.secondsToFullScale(timeSeconds);
+        const time = Timer.secondsToFullScale(revertSeconds);
         str += client.intlGet(guildId, 'automaticallyTurnBackOnOff', {
             status: active ? offCap : onCap,
             time: time
@@ -479,7 +482,7 @@ module.exports = {
             });
 
             rustplus.sendInGameMessage(str);
-        }, timeSeconds * 1000);
+        }, revertSeconds * 1000);
 
         rustplus.sendInGameMessage(str);
         return true;

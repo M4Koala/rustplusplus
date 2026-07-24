@@ -54,17 +54,27 @@ module.exports = {
         const entity = instance.serverList[serverId].switches[entityId];
         const grid = entity.location !== null ? ` (${entity.location})` : '';
 
+        const fields = [{
+            name: Client.client.intlGet(guildId, 'customCommand'),
+            value: `\`${instance.generalSettings.prefix}${entity.command}\``,
+            inline: true
+        }];
+
+        if (entity.pulseSeconds > 0) {
+            fields.push({
+                name: Client.client.intlGet(guildId, 'smartSwitchPulseField'),
+                value: `${entity.pulseSeconds}s`,
+                inline: true
+            });
+        }
+
         return module.exports.getEmbed({
             title: `${entity.name}${grid}`,
             color: entity.active ? Constants.COLOR_ACTIVE : Constants.COLOR_INACTIVE,
             description: `**ID**: \`${entityId}\``,
             thumbnail: `attachment://${entity.image}`,
             footer: { text: `${entity.server}` },
-            fields: [{
-                name: Client.client.intlGet(guildId, 'customCommand'),
-                value: `\`${instance.generalSettings.prefix}${entity.command}\``,
-                inline: true
-            }],
+            fields: fields,
             timestamp: true
         });
     },
@@ -134,6 +144,17 @@ module.exports = {
         description += `__**${Client.client.intlGet(guildId, 'clanTag')}:**__ `;
         description += tracker.clanTag !== '' ? `\`${tracker.clanTag}\`` : '';
 
+        if (!successful && bmInstance) {
+            const since = bmInstance.unavailableSince ?? (bmInstance.lastError ? bmInstance.lastError.time : null);
+            const sinceStr = since !== null ?
+                `<t:${Math.floor(new Date(since).getTime() / 1000)}:R>` : Client.client.intlGet(guildId, 'unknown');
+            const status = (bmInstance.lastError && bmInstance.lastError.status !== null) ?
+                `${bmInstance.lastError.status}` : Client.client.intlGet(guildId, 'unknown');
+
+            description += `\n${Constants.WARNING_EMOJI} ` + Client.client.intlGet(guildId,
+                'battlemetricsDataUnavailable', { time: sinceStr, status: status });
+        }
+
         let totalCharacters = description.length;
         let fieldIndex = 0
         let playerName = [''], playerId = [''], playerStatus = [''];
@@ -159,7 +180,7 @@ module.exports = {
                 Client.client.intlGet(guildId, 'empty') : ''}`;
             id += '\n';
 
-            if (!bmInstance.players.hasOwnProperty(player.playerId) || !successful) {
+            if (!successful || !bmInstance.players.hasOwnProperty(player.playerId)) {
                 status += `${Constants.NOT_FOUND_EMOJI}\n`;
             }
             else {
@@ -902,16 +923,36 @@ module.exports = {
         const bmInstance = Client.client.battlemetricsInstances[battlemetricsId];
         const guildId = rustplus.guildId;
 
+        if (!bmInstance.lastUpdateSuccessful) {
+            const since = bmInstance.unavailableSince ?? (bmInstance.lastError ? bmInstance.lastError.time : null);
+            const sinceStr = since !== null ?
+                `<t:${Math.floor(new Date(since).getTime() / 1000)}:R>` : Client.client.intlGet(guildId, 'unknown');
+            const status = (bmInstance.lastError && bmInstance.lastError.status !== null) ?
+                `${bmInstance.lastError.status}` : Client.client.intlGet(guildId, 'unknown');
+
+            return module.exports.getEmbed({
+                title: Client.client.intlGet(guildId, 'battlemetricsOnlinePlayers'),
+                color: Constants.COLOR_INACTIVE,
+                description: `${Constants.WARNING_EMOJI} ` + Client.client.intlGet(guildId,
+                    'battlemetricsDataUnavailable', { time: sinceStr, status: status }),
+                footer: { text: bmInstance.server_name ?? '' },
+                timestamp: true
+            });
+        }
+
         const playerIds = bmInstance.getOnlinePlayerIdsOrderedByTime();
 
         let totalCharacters = 0;
         let fieldCharacters = 0;
 
-        const title = Client.client.intlGet(guildId, 'battlemetricsOnlinePlayers');
-        const footer = { text: bmInstance.server_name };
+        const title = Client.client.intlGet(guildId, 'battlemetricsOnlinePlayersCount', {
+            players: `${bmInstance.server_players}`,
+            maxPlayers: `${bmInstance.server_maxPlayers}`
+        });
+        const footer = { text: bmInstance.server_name ?? '' };
 
         totalCharacters += title.length;
-        totalCharacters += bmInstance.server_name.length;
+        totalCharacters += footer.text.length;
         totalCharacters += Client.client.intlGet(guildId, 'andMorePlayers', { number: 100 }).length;
         totalCharacters += `${Client.client.intlGet(guildId, 'players')}`.length;
 
@@ -959,10 +1000,20 @@ module.exports = {
             timestamp: true
         });
 
+        const descriptionParts = [];
+        if (playerIds.length !== bmInstance.server_players) {
+            descriptionParts.push(Client.client.intlGet(guildId, 'battlemetricsListedPlayersDiffer', {
+                listed: `${playerIds.length}`,
+                reported: `${bmInstance.server_players}`
+            }));
+        }
         if (isEmbedFull) {
-            embed.setDescription(Client.client.intlGet(guildId, 'andMorePlayers', {
+            descriptionParts.push(Client.client.intlGet(guildId, 'andMorePlayers', {
                 number: playerIds.length - playerCounter
             }));
+        }
+        if (descriptionParts.length !== 0) {
+            embed.setDescription(descriptionParts.join('\n'));
         }
 
         let fieldCounter = 0;

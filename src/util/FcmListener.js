@@ -306,6 +306,7 @@ async function pairingEntitySwitch(client, guild, title, message, body) {
         y: entityExist ? switches[body.entityId].y : null,
         server: entityExist ? switches[body.entityId].server : body.name,
         proximity: entityExist ? switches[body.entityId].proximity : Constants.PROXIMITY_SETTING_DEFAULT_METERS,
+        pulseSeconds: entityExist ? (switches[body.entityId].pulseSeconds ?? 0) : 0,
         messageId: entityExist ? switches[body.entityId].messageId : null
     };
     client.setInstance(guild.id, instance);

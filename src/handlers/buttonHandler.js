@@ -24,6 +24,7 @@ const Config = require('../../config');
 const DiscordMessages = require('../discordTools/discordMessages.js');
 const DiscordTools = require('../discordTools/discordTools.js');
 const SmartSwitchGroupHandler = require('./smartSwitchGroupHandler.js');
+const SmartSwitchHandler = require('./smartSwitchHandler.js');
 const DiscordButtons = require('../discordTools/discordButtons.js');
 const DiscordModals = require('../discordTools/discordModals.js');
 
@@ -716,6 +717,26 @@ module.exports = async (client, interaction) => {
         else {
             server.switches[ids.entityId].reachable = true;
             client.setInstance(guildId, instance);
+        }
+
+        const pulseSeconds = server.switches[ids.entityId].pulseSeconds ?? 0;
+        if (server.switches[ids.entityId].reachable && pulseSeconds > 0) {
+            rustplus.currentSwitchTimeouts[ids.entityId] = setTimeout(async function () {
+                const freshInstance = client.getInstance(guildId);
+                if (!freshInstance.serverList.hasOwnProperty(ids.serverId) ||
+                    !freshInstance.serverList[ids.serverId].switches.hasOwnProperty(ids.entityId)) {
+                    return;
+                }
+
+                await SmartSwitchHandler.smartSwitchCommandTurnOnOff(rustplus, client, ids.entityId, !active);
+
+                const name = freshInstance.serverList[ids.serverId].switches[ids.entityId].name;
+                const status = !active ? client.intlGet(guildId, 'onCap') : client.intlGet(guildId, 'offCap');
+                rustplus.sendInGameMessage(client.intlGet(guildId, 'automaticallyTurningBackOnOff', {
+                    device: name,
+                    status: status
+                }));
+            }, pulseSeconds * 1000);
         }
 
         if (instance.generalSettings.smartSwitchNotifyInGameWhenChangedFromDiscord) {
