@@ -251,7 +251,7 @@ class RustPlus extends RustPlusLib {
     }
 
     updateBotMessages(message) {
-        if (this.messagesSentByBot === Constants.BOT_MESSAGE_HISTORY_LIMIT) {
+        while (this.messagesSentByBot.length >= Constants.BOT_MESSAGE_HISTORY_LIMIT) {
             this.messagesSentByBot.pop();
         }
         this.messagesSentByBot.unshift(message);
@@ -930,7 +930,7 @@ class RustPlus extends RustPlusLib {
             });
         }
 
-        return null;
+        return Client.client.intlGet(this.guildId, 'commandUsageConnection', { prefix: prefix });
     }
 
     getCommandCraft(command) {
@@ -1005,6 +1005,10 @@ class RustPlus extends RustPlusLib {
         const commandDeathEn = `${prefix}${Client.client.intlGet('en', 'commandSyntaxDeath')}`;
         const commandDeaths = `${prefix}${Client.client.intlGet(this.guildId, 'commandSyntaxDeaths')}`;
         const commandDeathsEn = `${prefix}${Client.client.intlGet('en', 'commandSyntaxDeaths')}`;
+
+        if (command.toLowerCase() === commandDeath || command.toLowerCase() === commandDeathEn) {
+            return Client.client.intlGet(this.guildId, 'commandUsageDeath', { prefix: prefix });
+        }
 
         const teamInfo = await this.getTeamInfoAsync();
         if (!(await this.isResponseValid(teamInfo))) return null;
@@ -1687,6 +1691,10 @@ class RustPlus extends RustPlusLib {
             return str !== '' ? str.slice(0, -2) : Client.client.intlGet(this.guildId, 'noRegisteredMarkers');
         }
 
+        if (command.toLowerCase() === commandMarker || command.toLowerCase() === commandMarkerEn) {
+            return Client.client.intlGet(this.guildId, 'commandUsageMarker', { prefix: prefix });
+        }
+
         if (command.toLowerCase().startsWith(`${commandMarker} `)) {
             command = command.slice(`${commandMarker} `.length).trim();
         }
@@ -1699,9 +1707,10 @@ class RustPlus extends RustPlusLib {
         switch (subcommand.toLowerCase()) {
             case commandAddEn:
             case commandAdd: {
-                if (name.startsWith(commandAdd) || name.startsWith(commandRemove)) return null;
-                if (name.startsWith(commandAddEn) || name.startsWith(commandRemoveEn)) return null;
-                if (name === '') return null;
+                if (name.startsWith(commandAdd) || name.startsWith(commandRemove) ||
+                    name.startsWith(commandAddEn) || name.startsWith(commandRemoveEn) || name === '') {
+                    return Client.client.intlGet(this.guildId, 'commandUsageMarker', { prefix: prefix });
+                }
 
                 const teamInfo = await this.getTeamInfoAsync();
                 if (!(await this.isResponseValid(teamInfo))) return null;
@@ -1940,7 +1949,7 @@ class RustPlus extends RustPlusLib {
             } break;
 
             default: {
-                return null;
+                return Client.client.intlGet(this.guildId, 'commandUsageMarket', { prefix: prefix });
             } break;
         }
     }
@@ -2019,7 +2028,7 @@ class RustPlus extends RustPlusLib {
             } break;
 
             default: {
-                return null;
+                return Client.client.intlGet(this.guildId, 'commandUsageNote', { prefix: prefix });
             } break;
         }
     }
@@ -2100,7 +2109,7 @@ class RustPlus extends RustPlusLib {
             }
         }
         else {
-            return null;
+            return Client.client.intlGet(this.guildId, 'commandUsagePlayer', { prefix: prefix });
         }
 
         const trademark = this.generalSettings.trademark;
@@ -2112,7 +2121,8 @@ class RustPlus extends RustPlusLib {
         let playerIndex = 0;
         for (const playerId of foundPlayers) {
             const time = bmInstance.getOnlineTime(playerId);
-            const playerString = `${bmInstance.players[playerId]['name']} [${time[1]}], `;
+            const timeStr = time !== null ? time[1] : '';
+            const playerString = `${bmInstance.players[playerId]['name']} [${timeStr}], `;
 
             if ((string.length + playerString.length + leftLength) < messageMaxLength) {
                 string += playerString;
@@ -2371,6 +2381,10 @@ class RustPlus extends RustPlusLib {
         const commandSend = `${prefix}${Client.client.intlGet(this.guildId, 'commandSyntaxSend')}`;
         const commandSendEn = `${prefix}${Client.client.intlGet('en', 'commandSyntaxSend')}`;
 
+        if (command.toLowerCase() === commandSend || command.toLowerCase() === commandSendEn) {
+            return Client.client.intlGet(this.guildId, 'commandUsageSend', { prefix: prefix });
+        }
+
         if (command.toLowerCase().startsWith(`${commandSend} `)) {
             command = command.slice(`${commandSend} `.length).trim();
         }
@@ -2564,8 +2578,12 @@ class RustPlus extends RustPlusLib {
         const commandAddEn = `${Client.client.intlGet('en', 'commandSyntaxAdd')}`;
         const commandRemove = `${Client.client.intlGet(this.guildId, 'commandSyntaxRemove')}`;
         const commandRemoveEn = `${Client.client.intlGet('en', 'commandSyntaxRemove')}`;
+        const commandShow = `${Client.client.intlGet(this.guildId, 'commandSyntaxShow')}`;
+        const commandShowEn = `${Client.client.intlGet('en', 'commandSyntaxShow')}`;
+        const commandList = `${Client.client.intlGet(this.guildId, 'commandSyntaxList')}`;
+        const commandListEn = `${Client.client.intlGet('en', 'commandSyntaxList')}`;
 
-        if (command.toLowerCase() === `${commandTimers}` || command.toLowerCase() === `${commandTimersEn}`) {
+        const listTimers = () => {
             if (Object.keys(this.timers).length === 0) {
                 return Client.client.intlGet(this.guildId, 'noActiveTimers');
             }
@@ -2580,6 +2598,14 @@ class RustPlus extends RustPlusLib {
                 }));
             }
             return strings;
+        };
+
+        if (command.toLowerCase() === `${commandTimers}` || command.toLowerCase() === `${commandTimersEn}`) {
+            return listTimers();
+        }
+
+        if (command.toLowerCase() === commandTimer || command.toLowerCase() === commandTimerEn) {
+            return Client.client.intlGet(this.guildId, 'commandUsageTimer', { prefix: prefix });
         }
 
         if (command.toLowerCase().startsWith(`${commandTimer} `)) {
@@ -2626,8 +2652,15 @@ class RustPlus extends RustPlusLib {
                 return Client.client.intlGet(this.guildId, 'timerRemoved', { id: id });
             } break;
 
+            case commandShowEn:
+            case commandShow:
+            case commandListEn:
+            case commandList: {
+                return listTimers();
+            } break;
+
             default: {
-                return null;
+                return Client.client.intlGet(this.guildId, 'commandUsageTimer', { prefix: prefix });
             } break;
         }
     }
@@ -2638,6 +2671,10 @@ class RustPlus extends RustPlusLib {
         const commandTrEn = `${prefix}${Client.client.intlGet('en', 'commandSyntaxTranslateTo')}`;
         const commandLanguage = `${Client.client.intlGet(this.guildId, 'commandSyntaxLanguage')}`;
         const commandLanguageEn = `${Client.client.intlGet('en', 'commandSyntaxLanguage')}`;
+
+        if (command.toLowerCase() === commandTr || command.toLowerCase() === commandTrEn) {
+            return Client.client.intlGet(this.guildId, 'commandUsageTranslateTo', { prefix: prefix });
+        }
 
         if (command.toLowerCase().startsWith(`${commandTr} ${commandLanguage} `) ||
             command.toLowerCase().startsWith(`${commandTrEn} ${commandLanguageEn} `)) {
@@ -2690,6 +2727,10 @@ class RustPlus extends RustPlusLib {
         const commandTrf = `${prefix}${Client.client.intlGet(this.guildId, 'commandSyntaxTranslateFromTo')}`;
         const commandTrfEn = `${prefix}${Client.client.intlGet('en', 'commandSyntaxTranslateFromTo')}`;
 
+        if (command.toLowerCase() === commandTrf || command.toLowerCase() === commandTrfEn) {
+            return Client.client.intlGet(this.guildId, 'commandUsageTranslateFromTo', { prefix: prefix });
+        }
+
         if (command.toLowerCase().startsWith(`${commandTrf}`)) {
             command = command.slice(`${commandTrf} `.length).trim();
         }
@@ -2728,12 +2769,20 @@ class RustPlus extends RustPlusLib {
         const commandTTS = `${prefix}${Client.client.intlGet(this.guildId, 'commandSyntaxTTS')}`;
         const commandTTSEn = `${prefix}${Client.client.intlGet('en', 'commandSyntaxTTS')}`;
 
+        if (command.toLowerCase() === commandTTS || command.toLowerCase() === commandTTSEn) {
+            return Client.client.intlGet(this.guildId, 'commandUsageTTS', { prefix: prefix });
+        }
+
         let text = null;
         if (command.toLowerCase().startsWith(`${commandTTS}`)) {
             text = command.slice(`${commandTTS} `.length).trim();
         }
         else {
             text = command.slice(`${commandTTSEn} `.length).trim();
+        }
+
+        if (text === '') {
+            return Client.client.intlGet(this.guildId, 'commandUsageTTS', { prefix: prefix });
         }
 
         await DiscordMessages.sendTTSMessage(this.guildId, callerName, text);

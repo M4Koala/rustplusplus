@@ -21,5 +21,15 @@
 const DiscordMessages = require('../discordTools/discordMessages.js');
 
 module.exports = async function (rustplus, client, message) {
+    /* Never relay a prefixed message (a recognized command, a mistyped one, or anything else
+       starting with the command prefix) to Discord team chat. */
+    const prefix = rustplus.generalSettings.prefix;
+    if (prefix !== '' && message.message.startsWith(prefix)) {
+        rustplus.log(client.intlGet(null, 'infoCap'), client.intlGet(null, 'teamChatRelaySuppressed', {
+            message: message.message
+        }));
+        return;
+    }
+
     await DiscordMessages.sendTeamChatMessage(rustplus.guildId, message);
 }

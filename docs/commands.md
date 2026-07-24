@@ -361,6 +361,11 @@ Subcommand | Options | Description | Required
 
 # In-Game Commands
 
+Multi-part commands (e.g. `timer`, `market`, `marker`, `note`, `connection`, `death`, `player`, `send`, `tr`,
+`trf`, `tts`) reply with their usage syntax in-game if run with missing or invalid arguments, instead of doing
+nothing. Also note: no in-game team chat message that starts with the command prefix (a recognized command, a
+mistyped one, or anything else) is ever relayed to the Discord teamchat channel.
+
 In-Game Command | Description
 --------------- | -----------
 [**afk**](commands.md#afk) | Get the currently afk players in your team.
@@ -693,13 +698,14 @@ Subcommand | Description | Required
 
 ## **timer**
 
-> **Set custom timers that will notify whenever the timer have expired.** To list all registered timers run `!timers`.
+> **Set custom timers that will notify whenever the timer have expired.** To list all registered timers run `!timers`, `!timer show` or `!timer list` (all three are equivalent).
 <br>`The argument <time> is used to set time in the format: 2h15m or 15m10s etc... (not space between d/h/m/s).`
 
 Subcommand | Description | Required
 ---------- | ----------- | --------
 `add` | Add a custom timer (`!timer add <time> <text>`). | `False`
 `remove` | Remove a custom timer (`!timer remove <id>`). | `False`
+`show` / `list` | List all registered timers, same as `!timers` (`!timer show`). | `False`
 
 ![In-Game Command timer Image](images/ingame_commands/timer_ingame.png)
 
