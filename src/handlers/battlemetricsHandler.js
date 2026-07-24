@@ -32,163 +32,177 @@ module.exports = {
 
         for (const guildItem of client.guilds.cache) {
             const guildId = guildItem[0];
-            const instance = client.getInstance(guildId);
-            const rustplus = client.rustplusInstances[guildId];
 
-            if (!firstTime) await module.exports.handleBattlemetricsChanges(client, guildId);
+            /* A throw anywhere in here (e.g. the ReferenceErrors that used to lurk in
+               handleBattlemetricsChanges) must not abort updates for the remaining guilds. */
+            try {
+                const instance = client.getInstance(guildId);
+                const rustplus = client.rustplusInstances[guildId];
 
-            /* Update information channel battlemetrics players */
-            const bmId = instance.activeServer !== null ?
-                instance.serverList[instance.activeServer].battlemetricsId : null;
-            let condition = instance.generalSettings.displayInformationBattlemetricsAllOnlinePlayers;
-            condition &= instance.activeServer !== null;
-            condition &= bmId !== null;
-            condition &= client.battlemetricsInstances.hasOwnProperty(bmId);
-            condition &= rustplus && rustplus.isOperational;
+                if (!firstTime) await module.exports.handleBattlemetricsChanges(client, guildId);
 
-            if (condition) {
-                await DiscordMessages.sendUpdateBattlemetricsOnlinePlayersInformationMessage(rustplus, bmId);
-            }
-            else {
-                if (instance.informationMessageId.battlemetricsPlayers !== null) {
-                    await DiscordTools.deleteMessageById(guildId, instance.channelId.information,
-                        instance.informationMessageId.battlemetricsPlayers);
+                /* Update information channel battlemetrics players */
+                const bmId = instance.activeServer !== null ?
+                    instance.serverList[instance.activeServer].battlemetricsId : null;
+                let condition = instance.generalSettings.displayInformationBattlemetricsAllOnlinePlayers;
+                condition &= instance.activeServer !== null;
+                condition &= bmId !== null;
+                condition &= client.battlemetricsInstances.hasOwnProperty(bmId);
+                condition &= rustplus && rustplus.isOperational;
 
-                    instance.informationMessageId.battlemetricsPlayers = null;
-
-                    /* Write on a fresh read, this tick's snapshot is stale after the awaits
-                       above and would revert concurrently stored message ids. */
-                    const fresh = client.getInstance(guildId);
-                    fresh.informationMessageId.battlemetricsPlayers = null;
-                    client.setInstance(guildId, fresh);
+                if (condition) {
+                    await DiscordMessages.sendUpdateBattlemetricsOnlinePlayersInformationMessage(rustplus, bmId);
                 }
-            }
+                else {
+                    if (instance.informationMessageId.battlemetricsPlayers !== null) {
+                        await DiscordTools.deleteMessageById(guildId, instance.channelId.information,
+                            instance.informationMessageId.battlemetricsPlayers);
 
-            for (const [trackerId, content] of Object.entries(instance.trackers)) {
-                const battlemetricsId = content.battlemetricsId;
-                const bmInstance = client.battlemetricsInstances[battlemetricsId];
+                        instance.informationMessageId.battlemetricsPlayers = null;
 
-                if (!bmInstance || !bmInstance.lastUpdateSuccessful) continue;
-
-                if (firstTime || searchSteamProfiles) {
-                    for (const player of content.players) {
-                        if (player.steamId === null) continue;
-
-                        let name = null;
-                        if (calledSteamProfiles.hasOwnProperty(player.steamId)) {
-                            name = calledSteamProfiles[player.steamId];
-                        }
-                        else {
-                            name = await Scrape.scrapeSteamProfileName(client, player.steamId);
-                            calledSteamProfiles[player.steamId] = name;
-                        }
-                        if (name === null) continue;
-
-                        name = (content.clanTag !== '' ? `${content.clanTag} ` : '') + `${name}`;
-
-                        if (player.name !== name) {
-                            await module.exports.trackerNewNameDetected(client, guildId, trackerId, battlemetricsId,
-                                player.name, name);
-
-                            const newPlayerId = Object.keys(bmInstance.players)
-                                .find(e => bmInstance.players[e]['name'] === name);
-                            player.playerId = newPlayerId ? newPlayerId : null;
-                            player.name = name;
-                        }
-                    }
-
-                    /* Persist the updated tracker players on a fresh read, this tick's
-                       snapshot is stale after the scrape awaits and writing it back would
-                       revert concurrently stored message ids (e.g. the battlemetrics
-                       information message posted above). */
-                    const fresh = client.getInstance(guildId);
-                    if (fresh.trackers.hasOwnProperty(trackerId)) {
-                        fresh.trackers[trackerId].players = content.players;
+                        /* Write on a fresh read, this tick's snapshot is stale after the awaits
+                           above and would revert concurrently stored message ids. */
+                        const fresh = client.getInstance(guildId);
+                        fresh.informationMessageId.battlemetricsPlayers = null;
                         client.setInstance(guildId, fresh);
                     }
+                }
 
-                    if (firstTime) {
+                for (const [trackerId, content] of Object.entries(instance.trackers)) {
+                    /* One malformed tracker must not stop the rest from refreshing. */
+                    try {
+                        const battlemetricsId = content.battlemetricsId;
+                        const bmInstance = client.battlemetricsInstances[battlemetricsId];
+                        const available = bmInstance && bmInstance.lastUpdateSuccessful ? true : false;
+
+                        if (available) {
+                            if (firstTime || searchSteamProfiles) {
+                                for (const player of content.players) {
+                                    if (player.steamId === null) continue;
+
+                                    let name = null;
+                                    if (calledSteamProfiles.hasOwnProperty(player.steamId)) {
+                                        name = calledSteamProfiles[player.steamId];
+                                    }
+                                    else {
+                                        name = await Scrape.scrapeSteamProfileName(client, player.steamId);
+                                        calledSteamProfiles[player.steamId] = name;
+                                    }
+                                    if (name === null) continue;
+
+                                    name = (content.clanTag !== '' ? `${content.clanTag} ` : '') + `${name}`;
+
+                                    if (player.name !== name) {
+                                        await module.exports.trackerNewNameDetected(client, guildId, trackerId,
+                                            battlemetricsId, player.name, name);
+
+                                        const newPlayerId = Object.keys(bmInstance.players)
+                                            .find(e => bmInstance.players[e]['name'] === name);
+                                        player.playerId = newPlayerId ? newPlayerId : null;
+                                        player.name = name;
+                                    }
+                                }
+
+                                /* Persist the updated tracker players on a fresh read, merged onto
+                                   it rather than overwritten: this tick's snapshot is stale after
+                                   the scrape awaits, and a player removed via the tracker's Discord
+                                   modal in the meantime must not be resurrected by writing it back
+                                   wholesale. */
+                                const fresh = client.getInstance(guildId);
+                                if (fresh.trackers.hasOwnProperty(trackerId)) {
+                                    fresh.trackers[trackerId].players = module.exports.mergeTrackerPlayers(
+                                        fresh.trackers[trackerId].players, content.players);
+                                    client.setInstance(guildId, fresh);
+                                }
+
+                                if (firstTime) {
+                                    await DiscordMessages.sendTrackerMessage(guildId, trackerId);
+                                    continue;
+                                }
+                            }
+
+                            const trackerPlayerIds = content.players.map(e => e.playerId);
+
+                            /* Check if Player just changed name */
+                            for (const player of bmInstance.nameChangedPlayers.filter(
+                                e => trackerPlayerIds.includes(e.id))) {
+                                for (const playerT of content.players) {
+                                    if (playerT.playerId !== player.id) continue;
+
+                                    await module.exports.trackerNewNameDetected(client, guildId, trackerId,
+                                        battlemetricsId, player.from, player.to);
+                                }
+                            }
+
+                            /* Check if Player just came online */
+                            for (const playerId of trackerPlayerIds.filter(e => bmInstance.newPlayers.includes(e))) {
+                                for (const player of content.players) {
+                                    if (player.playerId !== playerId) continue;
+
+                                    const str = client.intlGet(guildId, 'playerJustConnectedTracker', {
+                                        name: player.name,
+                                        tracker: content.name
+                                    });
+                                    await DiscordMessages.sendActivityNotificationMessage(
+                                        guildId, content.serverId, Constants.COLOR_ACTIVE, str, null, content.title,
+                                        content.everyone);
+                                    if (rustplus && (rustplus.serverId === content.serverId) && content.inGame) {
+                                        rustplus.sendInGameMessage(str);
+                                    }
+                                }
+                            }
+
+                            /* Check if Player just came online */
+                            for (const playerId of trackerPlayerIds.filter(e => bmInstance.loginPlayers.includes(e))) {
+                                for (const player of content.players) {
+                                    if (player.playerId !== playerId) continue;
+
+                                    const str = client.intlGet(guildId, 'playerJustConnectedTracker', {
+                                        name: player.name,
+                                        tracker: content.name
+                                    });
+                                    await DiscordMessages.sendActivityNotificationMessage(
+                                        guildId, content.serverId, Constants.COLOR_ACTIVE, str, null, content.title,
+                                        content.everyone);
+                                    if (rustplus && (rustplus.serverId === content.serverId) && content.inGame) {
+                                        rustplus.sendInGameMessage(str);
+                                    }
+                                }
+                            }
+
+                            /* Check if Player just went offline */
+                            for (const playerId of trackerPlayerIds.filter(e => bmInstance.logoutPlayers.includes(e))) {
+                                for (const player of content.players) {
+                                    if (player.playerId !== playerId) continue;
+
+                                    const str = client.intlGet(guildId, 'playerJustDisconnectedTracker', {
+                                        name: player.name,
+                                        tracker: content.name
+                                    });
+
+                                    await DiscordMessages.sendActivityNotificationMessage(
+                                        guildId, content.serverId, Constants.COLOR_INACTIVE, str, null, content.title,
+                                        content.everyone);
+                                    if (rustplus && (rustplus.serverId === content.serverId) && content.inGame) {
+                                        rustplus.sendInGameMessage(str);
+                                    }
+                                }
+                            }
+                        }
+
+                        /* Always refresh the tracker embed, even when Battlemetrics is unavailable,
+                           so it shows a live 'data unavailable' state instead of freezing. */
                         await DiscordMessages.sendTrackerMessage(guildId, trackerId);
-                        continue;
+                    }
+                    catch (e) {
+                        client.log(client.intlGet(null, 'errorCap'), client.intlGet(null,
+                            'battlemetricsTrackerUpdateFailed', { tracker: trackerId, error: `${e}` }), 'error');
                     }
                 }
-
-                const trackerPlayerIds = content.players.map(e => e.playerId);
-
-                /* Check if Player just changed name */
-                for (const player of bmInstance.nameChangedPlayers.filter(e => trackerPlayerIds.includes(e.id))) {
-                    for (const playerT of content.players) {
-                        if (playerT.playerId !== player.id) continue;
-
-                        await module.exports.trackerNewNameDetected(client, guildId, trackerId, battlemetricsId,
-                            player.from, player.to);
-                    }
-                }
-
-                /* Check if Player just came online */
-                for (const playerId of trackerPlayerIds.filter(e => bmInstance.newPlayers.includes(e))) {
-                    for (const player of content.players) {
-                        if (player.playerId !== playerId) continue;
-
-                        const str = client.intlGet(guildId, 'playerJustConnectedTracker', {
-                            name: player.name,
-                            tracker: content.name
-                        });
-                        await DiscordMessages.sendActivityNotificationMessage(
-                            guildId, content.serverId, Constants.COLOR_ACTIVE, str, null, content.title,
-                            content.everyone);
-                        if (rustplus && (rustplus.serverId === content.serverId) && content.inGame) {
-                            rustplus.sendInGameMessage(str);
-                        }
-                    }
-                }
-
-                /* Check if Player just came online */
-                for (const playerId of trackerPlayerIds.filter(e => bmInstance.loginPlayers.includes(e))) {
-                    for (const player of content.players) {
-                        if (player.playerId !== playerId) continue;
-
-                        const str = client.intlGet(guildId, 'playerJustConnectedTracker', {
-                            name: player.name,
-                            tracker: content.name
-                        });
-                        await DiscordMessages.sendActivityNotificationMessage(
-                            guildId, content.serverId, Constants.COLOR_ACTIVE, str, null, content.title,
-                            content.everyone);
-                        if (rustplus && (rustplus.serverId === content.serverId) && content.inGame) {
-                            rustplus.sendInGameMessage(str);
-                        }
-                    }
-                }
-
-                /* Check if Player just went offline */
-                for (const playerId of trackerPlayerIds.filter(e => bmInstance.logoutPlayers.includes(e))) {
-                    for (const player of content.players) {
-                        if (player.playerId !== playerId) continue;
-
-                        const str = client.intlGet(guildId, 'playerJustDisconnectedTracker', {
-                            name: player.name,
-                            tracker: content.name
-                        });
-
-                        await DiscordMessages.sendActivityNotificationMessage(
-                            guildId, content.serverId, Constants.COLOR_INACTIVE, str, null, content.title,
-                            content.everyone);
-                        if (rustplus && (rustplus.serverId === content.serverId) && content.inGame) {
-                            rustplus.sendInGameMessage(str);
-                        }
-                    }
-                }
-
-                /* Same as above: persist on a fresh read instead of this tick's stale
-                   snapshot. */
-                const freshEnd = client.getInstance(guildId);
-                if (freshEnd.trackers.hasOwnProperty(trackerId)) {
-                    freshEnd.trackers[trackerId].players = content.players;
-                    client.setInstance(guildId, freshEnd);
-                }
-
-                await DiscordMessages.sendTrackerMessage(guildId, trackerId);
+            }
+            catch (e) {
+                client.log(client.intlGet(null, 'errorCap'), client.intlGet(null,
+                    'battlemetricsHandlerFailed', { guild: guildId, error: `${e}` }), 'error');
             }
         }
 
@@ -198,6 +212,25 @@ module.exports = {
         else {
             client.battlemetricsIntervalCounter += 1;
         }
+    },
+
+    /**
+     *  Merge a tick's scraped/updated tracker players onto a freshly-read tracker player list.
+     *  Iterates the fresh list (so a mid-tick removal via the Discord modal sticks — it is not
+     *  re-added just because the stale tick snapshot still had it) and copies over any
+     *  name/playerId update found for the same player in the tick's list. Identity is matched by
+     *  steamId when the fresh entry has one, otherwise by playerId.
+     *  @param {Array} freshPlayers The tracker's current players, read fresh from the instance.
+     *  @param {Array} tickPlayers This tick's (possibly stale) players array with any updates.
+     *  @return {Array} The merged players array to persist.
+     */
+    mergeTrackerPlayers: function (freshPlayers, tickPlayers) {
+        return freshPlayers.map(freshPlayer => {
+            const updated = tickPlayers.find(e => freshPlayer.steamId !== null ?
+                e.steamId === freshPlayer.steamId :
+                (e.steamId === null && e.playerId === freshPlayer.playerId));
+            return updated ? { ...freshPlayer, name: updated.name, playerId: updated.playerId } : freshPlayer;
+        });
     },
 
     handleBattlemetricsChanges: async function (client, guildId) {
@@ -304,7 +337,7 @@ module.exports = {
 
                 let description = '';
                 if (isEmbedFull) {
-                    description = client.intlGet(interaction.guildId, 'andMorePlayers', {
+                    description = client.intlGet(guildId, 'andMorePlayers', {
                         number: bmInstance.nameChangedPlayers.length - playerCounter
                     });
                 }
@@ -368,7 +401,7 @@ module.exports = {
 
                 let description = '';
                 if (isEmbedFull) {
-                    description = client.intlGet(interaction.guildId, 'andMorePlayers', {
+                    description = client.intlGet(guildId, 'andMorePlayers', {
                         number: playerIds.length - playerCounter
                     });
                 }
@@ -422,8 +455,8 @@ module.exports = {
 
                 let description = '';
                 if (isEmbedFull) {
-                    description = client.intlGet(interaction.guildId, 'andMorePlayers', {
-                        number: playerIds.length - playerCounter
+                    description = client.intlGet(guildId, 'andMorePlayers', {
+                        number: bmInstance.logoutPlayers.length - playerCounter
                     });
                 }
 
