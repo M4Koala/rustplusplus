@@ -334,6 +334,57 @@ module.exports = async (client, interaction) => {
 
         await DiscordMessages.sendTrackerMessage(interaction.guildId, ids.trackerId);
     }
+    else if (interaction.customId === 'TrackerResolver') {
+        const PlayerResolver = require('../util/playerResolver.js');
+        const DiscordEmbeds = require('../discordTools/discordEmbeds.js');
+        const DiscordButtons = require('../discordTools/discordButtons.js');
+
+        const name = (interaction.fields.getTextInputValue('TrackerResolveName') ?? '').trim();
+        if (name === '') {
+            interaction.deferUpdate();
+            return;
+        }
+
+        const { candidates } = await PlayerResolver.resolveName(client, interaction.guildId, name);
+
+        if (candidates.length === 0) {
+            await interaction.reply({
+                embeds: [DiscordEmbeds.getActionInfoEmbed(1,
+                    client.intlGet(interaction.guildId, 'lookupNotFound', { name: name }))],
+                flags: 64
+            });
+            return;
+        }
+
+        const shown = candidates.slice(0, 10);
+        if (!client.resolverPending) client.resolverPending = {};
+        client.resolverPending[interaction.user.id] = { ts: Date.now(), candidates: shown };
+
+        const lines = shown.map((e, i) =>
+            `**${i + 1}. ${e.name}** — ${e.steamId ?? client.intlGet(interaction.guildId, 'lookupNoSteamId')} (${e.server})`);
+
+        const buttons = shown.map((e, i) => DiscordButtons.getButton({
+            label: `#${i + 1} ${`${e.name}`.slice(0, 40)}`,
+            style: Discord.ButtonStyle.Primary,
+            customId: `TrackerResolveAdd${JSON.stringify({ u: interaction.user.id, i: i })}`,
+            disabled: e.steamId === null
+        }));
+
+        const rows = [];
+        for (let i = 0; i < buttons.length; i += 5) {
+            rows.push(new Discord.ActionRowBuilder().addComponents(buttons.slice(i, i + 5)));
+        }
+
+        await interaction.reply({
+            embeds: [DiscordEmbeds.getEmbed({
+                color: Constants.COLOR_SETTINGS,
+                title: client.intlGet(interaction.guildId, 'lookupTitle', { name: name }),
+                description: `${lines.join('\n')}\n\n${client.intlGet(interaction.guildId, 'lookupHowTo')}`
+            })],
+            components: rows,
+            flags: 64
+        });
+    }
     else if (interaction.customId.startsWith('TrackerAddPlayer')) {
         const ids = JSON.parse(interaction.customId.replace('TrackerAddPlayer', ''));
         const tracker = instance.trackers[ids.trackerId];

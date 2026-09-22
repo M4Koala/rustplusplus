@@ -69,6 +69,7 @@ module.exports = (client, guild) => {
                 steamIds: []
             },
             aliases: [],
+            resolverMessageId: null,
             ntfy: {
                 topic: null,
                 server: null
@@ -215,6 +216,7 @@ module.exports = (client, guild) => {
         if (!instance.blacklist.hasOwnProperty('discordIds')) instance.blacklist['discordIds'] = [];
         if (!instance.blacklist.hasOwnProperty('steamIds')) instance.blacklist['steamIds'] = [];
         if (!instance.hasOwnProperty('aliases')) instance.aliases = [];
+        if (!instance.hasOwnProperty('resolverMessageId')) instance.resolverMessageId = null;
         if (!instance.hasOwnProperty('ntfy')) instance.ntfy = {
             topic: null,
             server: null

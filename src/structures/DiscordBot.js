@@ -254,6 +254,9 @@ class DiscordBot extends Discord.Client {
 
         if (firstTime) await PermissionHandler.resetPermissionsAllChannels(this, guild);
 
+        /* Name -> SteamID resolver entry point in #trackers (posted once, reposted if deleted). */
+        require('../discordTools/discordMessages.js').sendTrackerResolverMessage(guild.id);
+
         this.resetRustplusVariables(guild.id);
     }
 

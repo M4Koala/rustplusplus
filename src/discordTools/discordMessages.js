@@ -78,6 +78,37 @@ module.exports = {
         return current;
     },
 
+    /* Persistent entry point for the name -> SteamID resolver in #trackers. Posted once
+       and kept; reposted if someone deletes it. */
+    sendTrackerResolverMessage: async function (guildId) {
+        const instance = Client.client.getInstance(guildId);
+        const channel = DiscordTools.getTextChannelById(guildId, instance.channelId.trackers);
+        if (!channel) return;
+
+        if (instance.resolverMessageId) {
+            try {
+                await channel.messages.fetch(instance.resolverMessageId);
+                return;
+            }
+            catch (e) { /* deleted, repost below */ }
+        }
+
+        const message = await module.exports.sendMessage(guildId, {
+            embeds: [DiscordEmbeds.getEmbed({
+                color: Constants.COLOR_SETTINGS,
+                title: Client.client.intlGet(guildId, 'trackerResolverTitle'),
+                description: Client.client.intlGet(guildId, 'trackerResolverDesc')
+            })],
+            components: DiscordButtons.getTrackerResolverButton(guildId)
+        }, null, instance.channelId.trackers);
+
+        if (message) {
+            const fresh = Client.client.getInstance(guildId);
+            fresh.resolverMessageId = message.id;
+            Client.client.setInstance(guildId, fresh);
+        }
+    },
+
     sendTrackerMessage: async function (guildId, trackerId, interaction = null) {
         const instance = Client.client.getInstance(guildId);
         const tracker = instance.trackers[trackerId];

@@ -28,6 +28,7 @@ Slash Command | Description
 [**/role**](commands.md#role) | Set/Clear a specific role that will be able to see the rustplusplus category content.
 [**/storagemonitor**](commands.md#storagemonitors) | Operations on Storage Monitors.
 [**/switch**](commands.md#switch) | Operations on Smart Switches.
+[**/lookup**](commands.md#lookup) | Resolve SteamIDs for an in-game player name via the live server lists.
 [**/upkeep**](commands.md#upkeep) | Get the upkeep cost of an item.
 [**/uptime**](commands.md#uptime) | Display uptime of the bot and server.
 [**/voice**](commands.md#voice) | Operations on Voice Feature.
@@ -307,6 +308,19 @@ Subcommand | Options | Description | Required
 
 ![Discord Slash Command switch Image](images/slash_commands/switch.png)
 
+
+## **/lookup**
+
+> **Resolve SteamIDs for an in-game player name via the live server lists.**
+
+| Option | Description |
+| --- | --- |
+| name | Exact or partial player name (as shown in game). |
+
+In-game names are not unique and mutable. This queries the A2S player lists (which carry the
+SteamID64 per entry) of all paired servers and tracker addresses, and lists every matching
+player with their SteamID so you can add the right one to a tracker. Same resolver:
+`!steamid <name>` in in-game chat, or the resolver button in **#trackers**.
 
 ## **/upkeep**
 

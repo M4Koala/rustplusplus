@@ -150,6 +150,60 @@ module.exports = async (client, interaction) => {
 
         DiscordMessages.sendSmartSwitchMessage(guildId, ids.serverId, ids.entityId, interaction);
     }
+    else if (interaction.customId.startsWith('TrackerResolveTracker')) {
+        const DiscordEmbeds = require('../discordTools/discordEmbeds.js');
+        const ids = JSON.parse(interaction.customId.replace('TrackerResolveTracker', ''));
+
+        const pending = client.resolverPending ? client.resolverPending[ids.u] : null;
+        if (!pending || Date.now() - pending.ts > 5 * 60 * 1000 || !pending.candidates[ids.i]) {
+            await interaction.update({
+                embeds: [DiscordEmbeds.getActionInfoEmbed(1, client.intlGet(guildId, 'resolverExpired'))],
+                components: []
+            });
+            return;
+        }
+        const candidate = pending.candidates[ids.i];
+        const trackerId = interaction.values[0];
+        const tracker = instance.trackers[trackerId];
+
+        if (!tracker || !tracker.queryAddress || candidate.steamId === null) {
+            await interaction.update({
+                embeds: [DiscordEmbeds.getActionInfoEmbed(1, client.intlGet(guildId, 'resolverExpired'))],
+                components: []
+            });
+            return;
+        }
+
+        if (tracker.players.some(p => p.steamId === candidate.steamId)) {
+            await interaction.update({
+                embeds: [DiscordEmbeds.getActionInfoEmbed(1, client.intlGet(guildId, 'resolverAlreadyTracked',
+                    { name: candidate.name, tracker: tracker.name }))],
+                components: []
+            });
+            return;
+        }
+
+        tracker.players.push({
+            name: candidate.name,
+            steamId: candidate.steamId,
+            playerId: null
+        });
+        client.setInstance(guildId, instance);
+        delete client.resolverPending[ids.u];
+
+        client.log(client.intlGet(null, 'infoCap'), client.intlGet(null, 'selectMenuValueChange', {
+            id: `${verifyId}`,
+            value: `resolver add ${candidate.steamId} -> ${trackerId}`
+        }));
+
+        await DiscordMessages.sendTrackerMessage(guildId, trackerId);
+
+        await interaction.update({
+            embeds: [DiscordEmbeds.getActionInfoEmbed(0, client.intlGet(guildId, 'resolverAdded',
+                { name: candidate.name, steamId: candidate.steamId, tracker: tracker.name }))],
+            components: []
+        });
+    }
     else if (interaction.customId.startsWith('SmartAlarmType')) {
         const ids = JSON.parse(interaction.customId.replace('SmartAlarmType', ''));
         const server = instance.serverList[ids.serverId];

@@ -312,6 +312,21 @@ module.exports = {
         return modal;
     },
 
+    getTrackerResolverModal(guildId) {
+        return module.exports.getModal({
+            customId: `TrackerResolver`,
+            title: Client.client.intlGet(guildId, 'trackerResolverModalTitle')
+        }).addComponents(
+            new Discord.ActionRowBuilder().addComponents(TextInput.getTextInput({
+                customId: 'TrackerResolveName',
+                label: Client.client.intlGet(guildId, 'trackerResolveNameLabel'),
+                value: '',
+                required: true,
+                style: Discord.TextInputStyle.Short
+            }))
+        );
+    },
+
     getTrackerAddPlayerModal(guildId, trackerId) {
         const instance = Client.client.getInstance(guildId);
         const tracker = instance.trackers[trackerId];

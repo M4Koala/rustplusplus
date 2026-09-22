@@ -32,9 +32,17 @@ the Steam server browser protocol (A2S), for free:
 
 ## Name -> SteamID resolver
 
-In-game names are not unique and can change. When you meet someone and only know
-their name: type `!steamid <name>` in the in-game chat (or `/lookup name:<name>`
-in Discord). The bot queries the live server player list (which carries the
-SteamID64 per entry) and lists every matching player with their SteamID. Pick the
-right one and add it to a tracker (Tracker -> Add player: name + SteamID64);
-after that the tracker follows the ID even if they rename.
+In-game names are not unique and can change. The bot offers three entry points to turn
+a name you just heard into the stable SteamID64 you put in a tracker:
+
+- **#trackers channel**: press the **Resolve player (name → SteamID)** button (posted once
+  in the channel; it comes back if deleted), enter the name, and the result lists every
+  matching player with their SteamID — press **Add** on the right one and pick the tracker
+  from the dropdown; the player is added immediately.
+- **In-game chat**: `!steamid <name>` lists the candidates for the server you are on.
+- **Discord**: `/lookup name:<name>` lists candidates across all paired servers and
+  tracker addresses (then add manually via the tracker's Add player button).
+
+All three query the server's live A2S player list, which carries the SteamID64 for each
+entry. Candidates only include players currently on a queried server; servers that hide
+SteamIDs are reported as such.
