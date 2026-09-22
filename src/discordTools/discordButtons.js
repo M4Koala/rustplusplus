@@ -136,12 +136,14 @@ module.exports = {
             ];
         }
         else {
+            /* No Battlemetrics token: the tracker still works via the direct server query
+               (serverQueryHandler), so keep the create-tracker button available. */
             return [
                 new Discord.ActionRowBuilder().addComponents(
                     connectionButton, linkButton, editButton, deleteButton
                 ),
                 new Discord.ActionRowBuilder().addComponents(
-                    customTimersButton, groupButton
+                    customTimersButton, trackerButton, groupButton
                 ),
                 new Discord.ActionRowBuilder().addComponents(
                     deleteUnreachableDevicesButton
@@ -219,11 +221,19 @@ module.exports = {
         const entity = instance.serverList[serverId].alarms[entityId];
         const identifier = JSON.stringify({ "serverId": serverId, "entityId": entityId });
 
+        const type = entity.type ?? 'normal';
+        const typeStyle = { normal: DANGER, small: PRIMARY, large: PRIMARY, oilrig: SUCCESS };
+
         return new Discord.ActionRowBuilder().addComponents(
             module.exports.getButton({
                 customId: `SmartAlarmEveryone${identifier}`,
                 label: '@everyone',
                 style: entity.everyone ? SUCCESS : DANGER
+            }),
+            module.exports.getButton({
+                customId: `SmartAlarmType${identifier}`,
+                label: Client.client.intlGet(guildId, `alarmType_${type}`),
+                style: typeStyle[type] ?? PRIMARY
             }),
             module.exports.getButton({
                 customId: `SmartAlarmEdit${identifier}`,
@@ -390,6 +400,17 @@ module.exports = {
         return new Discord.ActionRowBuilder().addComponents(
             module.exports.getButton({
                 customId: 'WakeupCallEnabled',
+                label: enabled ?
+                    Client.client.intlGet(guildId, 'enabledCap') :
+                    Client.client.intlGet(guildId, 'disabledCap'),
+                style: enabled ? SUCCESS : DANGER
+            }));
+    },
+
+    getMarkerEventsEnabledButton: function (guildId, enabled) {
+        return new Discord.ActionRowBuilder().addComponents(
+            module.exports.getButton({
+                customId: 'MarkerEventsEnabled',
                 label: enabled ?
                     Client.client.intlGet(guildId, 'enabledCap') :
                     Client.client.intlGet(guildId, 'disabledCap'),

@@ -114,7 +114,7 @@ class RustPlus extends RustPlusLib {
         this.info = null;           /* Stores the Info structure. */
         this.time = null;           /* Stores the Time structure. */
         this.team = null;           /* Stores the Team structure. */
-        this.mapMarkers = null;     /* Stores the MapMarkers structure. */
+        this.mapMarkers = null;     /* Stores the MapMarkers structure, assigned on first valid poll. */
 
         this.loadRustPlusEvents();
     }
@@ -303,7 +303,22 @@ class RustPlus extends RustPlusLib {
         this.timers[id].timer.start();
     }
 
-    async sendEvent(setting, text, event, embed_color, firstPoll = false, image = null) {
+    async sendEvent(setting, text, event, embed_color, firstPoll = false, image = null, force = false) {
+        /* Belt-and-braces against the Rust+ Power Trip update (6 Aug 2026) removing marker data:
+           drop marker-sourced event settings unless the flag is on or the caller forces it
+           (e.g. a real Smart Alarm routed to an event, which does not need map markers). */
+        if (!force && this.generalSettings.markerEventsEnabled === false) {
+            const key = Object.keys(this.notificationSettings).find(k => this.notificationSettings[k] === setting);
+            if (key && Constants.DEPRECATED_MARKER_EVENTS.includes(key)) {
+                if (!this.markerEventDropLogged) {
+                    this.markerEventDropLogged = true;
+                    this.log(Client.client.intlGet(null, 'warningCap'),
+                        Client.client.intlGet(null, 'markerEventDroppedLog', { setting: key }));
+                }
+                return;
+            }
+        }
+
         const img = (image !== null) ? image : setting.image;
 
         this.updateEvents(event, text);
@@ -737,6 +752,8 @@ class RustPlus extends RustPlusLib {
     }
 
     getCommandCargo(isInfoChannel = false) {
+        if (!this.mapMarkers) return Client.client.intlGet(this.guildId, 'notActive');
+        if (this.generalSettings.markerEventsEnabled === false) return Client.client.intlGet(this.guildId, 'markerCommandUnsupported');
         const strings = [];
         let unhandled = this.mapMarkers.cargoShips.map(e => e.id);
         for (const [id, timer] of Object.entries(this.mapMarkers.cargoShipEgressTimers)) {
@@ -817,6 +834,8 @@ class RustPlus extends RustPlusLib {
     }
 
     getCommandChinook(isInfoChannel = false) {
+        if (!this.mapMarkers) return Client.client.intlGet(this.guildId, 'notActive');
+        if (this.generalSettings.markerEventsEnabled === false) return Client.client.intlGet(this.guildId, 'markerCommandUnsupported');
         const strings = [];
         for (const ch47 of this.mapMarkers.ch47s) {
             if (ch47.ch47Type === 'crate') {
@@ -1268,6 +1287,8 @@ class RustPlus extends RustPlusLib {
     }
 
     getCommandDeepSea(isInfoChannel = false) {
+        if (!this.mapMarkers) return Client.client.intlGet(this.guildId, 'notActive');
+        if (this.generalSettings.markerEventsEnabled === false) return Client.client.intlGet(this.guildId, 'markerCommandUnsupported');
         /* No location in any of the Deep Sea messages: the vendor markers the event is
            detected by sit at the interior zone's off-map position, not at the visible
            entrance, so a derived direction would be misleading. */
@@ -1469,6 +1490,8 @@ class RustPlus extends RustPlusLib {
     }
 
     getCommandHeli(isInfoChannel = false) {
+        if (!this.mapMarkers) return Client.client.intlGet(this.guildId, 'notActive');
+        if (this.generalSettings.markerEventsEnabled === false) return Client.client.intlGet(this.guildId, 'markerCommandUnsupported');
         const strings = [];
         for (const patrolHelicopter of this.mapMarkers.patrolHelicopters) {
             if (isInfoChannel) {
@@ -1534,6 +1557,8 @@ class RustPlus extends RustPlusLib {
     }
 
     getCommandLarge(isInfoChannel = false) {
+        if (!this.mapMarkers) return Client.client.intlGet(this.guildId, 'notActive');
+        if (this.generalSettings.markerEventsEnabled === false) return Client.client.intlGet(this.guildId, 'markerCommandUnsupported');
         const strings = [];
         if (this.mapMarkers.crateLargeOilRigTimer) {
             const time = Timer.getTimeLeftOfTimer(this.mapMarkers.crateLargeOilRigTimer);
@@ -2435,6 +2460,8 @@ class RustPlus extends RustPlusLib {
     }
 
     getCommandSmall(isInfoChannel = false) {
+        if (!this.mapMarkers) return Client.client.intlGet(this.guildId, 'notActive');
+        if (this.generalSettings.markerEventsEnabled === false) return Client.client.intlGet(this.guildId, 'markerCommandUnsupported');
         const strings = [];
         if (this.mapMarkers.crateSmallOilRigTimer) {
             const time = Timer.getTimeLeftOfTimer(this.mapMarkers.crateSmallOilRigTimer);

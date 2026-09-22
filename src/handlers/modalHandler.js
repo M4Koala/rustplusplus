@@ -289,6 +289,22 @@ module.exports = async (client, interaction) => {
             client.battlemetricsIntervalCounter = 0;
         }
 
+        const trackerQueryAddress = (interaction.fields.getTextInputValue('TrackerQueryAddress') ?? '').trim();
+        if (trackerQueryAddress !== '') {
+            if (/^[A-Za-z0-9_.:-]+$/.test(trackerQueryAddress)) {
+                const normalized = trackerQueryAddress.includes(':') ?
+                    trackerQueryAddress : `${trackerQueryAddress}:28015`;
+                if (normalized !== (tracker.queryAddress ?? null)) {
+                    tracker.queryAddress = normalized;
+                    /* Reset live state so the next poll re-baselines against the new server. */
+                    if (client.serverQueryState) delete client.serverQueryState[ids.trackerId];
+                }
+            }
+        }
+        else if (tracker.queryAddress) {
+            tracker.queryAddress = null;
+        }
+
         if (trackerBattlemetricsId !== tracker.battlemetricsId) {
             if (client.battlemetricsInstances.hasOwnProperty(trackerBattlemetricsId)) {
                 const bmInstance = client.battlemetricsInstances[trackerBattlemetricsId];

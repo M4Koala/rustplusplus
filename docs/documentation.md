@@ -10,3 +10,4 @@
 * [**Commands**](commands.md)
 * [**Discord Text Channels**](discord_text_channels.md)
 * [**Smart Devices**](smart_devices.md)
+* [**RF Event Alarms (oil rig etc.)**](rf_event_alarms.md)

@@ -362,6 +362,9 @@ async function pairingEntitySmartAlarm(client, guild, title, message, body) {
         id: entityExist ? alarms[body.entityId].id : body.entityId,
         image: entityExist ? alarms[body.entityId].image : 'smart_alarm.png',
         location: entityExist ? alarms[body.entityId].location : null,
+        /* 'normal' -> ntfy wake-up path; 'small'/'large'/'oilrig' -> routed as event notification
+           instead (e.g. RF Receiver tuned to 4765/4768 on the oil rig locked crate hack). */
+        type: entityExist ? (alarms[body.entityId].type ?? 'normal') : 'normal',
         server: entityExist ? alarms[body.entityId].server : body.name,
         messageId: entityExist ? alarms[body.entityId].messageId : null
     };
@@ -484,10 +487,23 @@ async function alarmAlarm(client, guild, title, message, body) {
         instance.generalSettings.fcmAlarmNotificationEnabled) {
         server.alarms[entityId].lastTrigger = Math.floor(new Date() / 1000);
         client.setInstance(guild.id, instance);
-        await DiscordMessages.sendSmartAlarmTriggerMessage(guild.id, serverId, entityId);
-        /* Alarm on a non-connected server, no in-game presence there to stand it down. */
-        WakeupHandler.requestWakeup(client, null, guild.id,
-            server.alarms[entityId].name, server.alarms[entityId].message);
+
+        /* Typed alarms (small/large/oilrig) are event notifications, no ntfy wake-up call —
+           same routing as the rustplus message path, but via a plain events channel post
+           since there is no connected instance to sendEvent through. */
+        const alarmType = server.alarms[entityId].type ?? 'normal';
+        if (alarmType !== 'normal') {
+            const textKeys = { small: 'alarmEventSmallCall', large: 'alarmEventLargeCall', oilrig: 'alarmEventOilRig' };
+            await DiscordMessages.sendDiscordEventMessage(guild.id, serverId,
+                `${client.intlGet(guild.id, textKeys[alarmType] ?? 'alarmEventOilRig')} [${title}: ${message}]`,
+                'oil_rig_logo.png', Constants.COLOR_SETTINGS);
+        }
+        else {
+            await DiscordMessages.sendSmartAlarmTriggerMessage(guild.id, serverId, entityId);
+            /* Alarm on a non-connected server, no in-game presence there to stand it down. */
+            WakeupHandler.requestWakeup(client, null, guild.id,
+                server.alarms[entityId].name, server.alarms[entityId].message);
+        }
         client.log(client.intlGet(null, 'infoCap'), `${title}: ${message}`);
     }
 }

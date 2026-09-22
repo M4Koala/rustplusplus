@@ -21,6 +21,8 @@
 const Discord = require('discord.js');
 
 const Config = require('../../config');
+const Constants = require('../util/constants.js');
+const DiscordEmbeds = require('../discordTools/discordEmbeds.js');
 const DiscordMessages = require('../discordTools/discordMessages.js');
 const DiscordTools = require('../discordTools/discordTools.js');
 const SmartSwitchGroupHandler = require('./smartSwitchGroupHandler.js');
@@ -49,6 +51,12 @@ module.exports = async (client, interaction) => {
         const ids = JSON.parse(interaction.customId.replace('DiscordNotification', ''));
         const setting = instance.notificationSettings[ids.setting];
 
+        if (Constants.DEPRECATED_MARKER_EVENTS.includes(ids.setting) &&
+            !instance.generalSettings.markerEventsEnabled) {
+            await module.exports.replyUnsupportedMarkerSetting(client, interaction, guildId);
+            return;
+        }
+
         setting.discord = !setting.discord;
         client.setInstance(guildId, instance);
 
@@ -68,6 +76,12 @@ module.exports = async (client, interaction) => {
         const ids = JSON.parse(interaction.customId.replace('InGameNotification', ''));
         const setting = instance.notificationSettings[ids.setting];
 
+        if (Constants.DEPRECATED_MARKER_EVENTS.includes(ids.setting) &&
+            !instance.generalSettings.markerEventsEnabled) {
+            await module.exports.replyUnsupportedMarkerSetting(client, interaction, guildId);
+            return;
+        }
+
         setting.inGame = !setting.inGame;
         client.setInstance(guildId, instance);
 
@@ -86,6 +100,12 @@ module.exports = async (client, interaction) => {
     else if (interaction.customId.startsWith('VoiceNotification')) {
         const ids = JSON.parse(interaction.customId.replace('VoiceNotification', ''));
         const setting = instance.notificationSettings[ids.setting];
+
+        if (Constants.DEPRECATED_MARKER_EVENTS.includes(ids.setting) &&
+            !instance.generalSettings.markerEventsEnabled) {
+            await module.exports.replyUnsupportedMarkerSetting(client, interaction, guildId);
+            return;
+        }
 
         setting.voice = !setting.voice;
         client.setInstance(guildId, instance);
@@ -250,6 +270,23 @@ module.exports = async (client, interaction) => {
             components: [DiscordButtons.getWakeupCallEnabledButton(
                 guildId,
                 instance.generalSettings.wakeupCallEnabled)]
+        });
+    }
+    else if (interaction.customId === 'MarkerEventsEnabled') {
+        instance.generalSettings.markerEventsEnabled = !instance.generalSettings.markerEventsEnabled;
+        client.setInstance(guildId, instance);
+
+        if (rustplus) rustplus.generalSettings.markerEventsEnabled = instance.generalSettings.markerEventsEnabled;
+
+        client.log(client.intlGet(null, 'infoCap'), client.intlGet(null, 'buttonValueChange', {
+            id: `${verifyId}`,
+            value: `${instance.generalSettings.markerEventsEnabled}`
+        }));
+
+        await client.interactionUpdate(interaction, {
+            components: [DiscordButtons.getMarkerEventsEnabledButton(
+                guildId,
+                instance.generalSettings.markerEventsEnabled)]
         });
     }
     else if (interaction.customId === 'SmartSwitchNotifyInGameWhenChangedFromDiscord') {
@@ -544,7 +581,7 @@ module.exports = async (client, interaction) => {
         const modal = DiscordModals.getCustomTimersEditModal(guildId, ids.serverId);
         await interaction.showModal(modal);
     }
-    else if (Config.battlemetrics.token !== '' && interaction.customId.startsWith('CreateTracker')) {
+    else if (interaction.customId.startsWith('CreateTracker')) {
         const ids = JSON.parse(interaction.customId.replace('CreateTracker', ''));
         const server = instance.serverList[ids.serverId];
 
@@ -562,6 +599,9 @@ module.exports = async (client, interaction) => {
             name: 'Tracker',
             serverId: ids.serverId,
             battlemetricsId: server.battlemetricsId,
+            /* Direct A2S query address (ip:port), used by serverQueryHandler when set;
+               free replacement for the (now paid) Battlemetrics player tracking. */
+            queryAddress: `${server.serverIp}:${server.appPort}`,
             title: server.title,
             img: server.img,
             clanTag: '',
@@ -821,6 +861,28 @@ module.exports = async (client, interaction) => {
         client.log(client.intlGet(null, 'infoCap'), client.intlGet(null, 'buttonValueChange', {
             id: `${verifyId}`,
             value: `${server.alarms[ids.entityId].everyone}`
+        }));
+
+        await DiscordMessages.sendSmartAlarmMessage(guildId, ids.serverId, ids.entityId, interaction);
+    }
+    else if (interaction.customId.startsWith('SmartAlarmType')) {
+        const ids = JSON.parse(interaction.customId.replace('SmartAlarmType', ''));
+        const server = instance.serverList[ids.serverId];
+
+        if (!server || (server && !server.alarms.hasOwnProperty(ids.entityId))) {
+            await interaction.message.delete();
+            return;
+        }
+
+        /* Cycle: normal (ntfy wake-up) -> small -> large -> oilrig (event notifications). */
+        const types = ['normal', 'small', 'large', 'oilrig'];
+        const current = types.indexOf(server.alarms[ids.entityId].type ?? 'normal');
+        server.alarms[ids.entityId].type = types[(current + 1) % types.length];
+        client.setInstance(guildId, instance);
+
+        client.log(client.intlGet(null, 'infoCap'), client.intlGet(null, 'buttonValueChange', {
+            id: `${verifyId}`,
+            value: `${server.alarms[ids.entityId].type}`
         }));
 
         await DiscordMessages.sendSmartAlarmMessage(guildId, ids.serverId, ids.entityId, interaction);
@@ -1209,4 +1271,16 @@ module.exports = async (client, interaction) => {
     client.log(client.intlGet(null, 'infoCap'), client.intlGet(null, 'userButtonInteractionSuccess', {
         id: `${verifyId}`
     }));
+}
+
+/* Ephemeral reply used when someone toggles a notification setting that depends on the
+   vending machine / event map markers Facepunch removed from Rust+ (Power Trip, 6 Aug 2026). */
+module.exports.replyUnsupportedMarkerSetting = async function (client, interaction, guildId) {
+    await interaction.reply({
+        embeds: [DiscordEmbeds.getEmbed({
+            color: Constants.COLOR_SETTINGS,
+            description: client.intlGet(guildId, 'markerEventsUnsupportedReply')
+        })],
+        flags: 64 /* ephemeral */
+    });
 }

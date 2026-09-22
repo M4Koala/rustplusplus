@@ -22,6 +22,7 @@ const Discord = require('discord.js');
 const Path = require('path');
 
 const BattlemetricsHandler = require('../handlers/battlemetricsHandler.js');
+const ServerQueryHandler = require('../handlers/serverQueryHandler.js');
 const Config = require('../../config');
 const CredentialsExpiryHandler = require('../handlers/credentialsExpiryHandler.js');
 
@@ -79,6 +80,10 @@ module.exports = {
             BattlemetricsHandler.handler(client, true);
             client.battlemetricsIntervalId = setInterval(BattlemetricsHandler.handler, 60000, client, false);
         }
+
+        /* Free player-on-server tracking via direct A2S queries (no Battlemetrics needed). */
+        ServerQueryHandler.handler(client);
+        client.serverQueryIntervalId = setInterval(ServerQueryHandler.handler, 60000, client);
 
         CredentialsExpiryHandler.handler(client);
         client.credentialsExpiryIntervalId = setInterval(CredentialsExpiryHandler.handler, 60 * 60 * 1000, client);

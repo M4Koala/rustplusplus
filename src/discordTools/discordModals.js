@@ -298,6 +298,14 @@ module.exports = {
                 style: Discord.TextInputStyle.Short,
                 required: false,
                 minLength: 0
+            })),
+            new Discord.ActionRowBuilder().addComponents(TextInput.getTextInput({
+                customId: 'TrackerQueryAddress',
+                label: Client.client.intlGet(guildId, 'sqQueryAddress'),
+                value: tracker.queryAddress ?? '',
+                style: Discord.TextInputStyle.Short,
+                required: false,
+                minLength: 0
             }))
         );
 

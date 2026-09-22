@@ -64,6 +64,19 @@ module.exports = {
     /* Battlemetrics API failure logging */
     BATTLEMETRICS_ERROR_LOG_THROTTLE_MS: 15 * 60 * 1000, /* Log a repeating API failure at most this often. */
 
+    /* Notification settings that depend on vending machine / event map markers.
+       Facepunch stopped sending these markers to Rust+ with the Power Trip update
+       (6 Aug 2026); getMapMarkers now only returns own-team player markers.
+       Disabled unless generalSettings.markerEventsEnabled (flip it if the data ever comes back). */
+    DEPRECATED_MARKER_EVENTS: [
+        'cargoShipDetectedSetting', 'cargoShipLeftSetting', 'cargoShipEgressSetting',
+        'cargoShipDockingAtHarborSetting',
+        'patrolHelicopterDetectedSetting', 'patrolHelicopterLeftSetting', 'patrolHelicopterDestroyedSetting',
+        'lockedCrateOilRigUnlockedSetting', 'heavyScientistCalledSetting', 'chinook47DetectedSetting',
+        'travelingVendorDetectedSetting', 'travelingVendorHaltedSetting', 'travelingVendorLeftSetting',
+        'vendingMachineDetectedSetting',
+        'deepSeaDetectedSetting', 'deepSeaClosingSoonSetting', 'deepSeaLeftSetting'],
+
     /* Deep Sea event. Detected via the floating city vendor vending machine map markers. */
     DEEP_SEA_VENDOR_NAMES: [
         'Attire Shop Vendor',

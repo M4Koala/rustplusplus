@@ -265,13 +265,19 @@ class MapMarkers {
 
     updateMapMarkers(mapMarkers) {
         this.updatePlayers(mapMarkers);
-        this.updateCargoShips(mapMarkers);
-        this.updatePatrolHelicopters(mapMarkers);
-        this.updateCH47s(mapMarkers);
-        this.updateVendingMachines(mapMarkers);
-        this.updateGenericRadiuses(mapMarkers);
-        this.updateTravelingVendors(mapMarkers);
-        this.updateDeepSea();
+
+        /* Facepunch stopped sending vending machine and event map markers to Rust+ with the
+           Power Trip update (6 Aug 2026) — only own-team player markers arrive anymore. The
+           marker-based trackers stay off until markerEventsEnabled is flipped on. */
+        if (this.rustplus.generalSettings.markerEventsEnabled) {
+            this.updateCargoShips(mapMarkers);
+            this.updatePatrolHelicopters(mapMarkers);
+            this.updateCH47s(mapMarkers);
+            this.updateVendingMachines(mapMarkers);
+            this.updateGenericRadiuses(mapMarkers);
+            this.updateTravelingVendors(mapMarkers);
+            this.updateDeepSea();
+        }
 
         if (this.rustplus.isFirstPoll) this.logMarkerDiagnostics(mapMarkers);
     }
@@ -440,7 +446,8 @@ class MapMarkers {
                         let instance = this.client.getInstance(this.rustplus.guildId);
                         this.crateSmallOilRigTimer = new Timer.timer(
                             this.notifyCrateSmallOilRigOpen.bind(this),
-                            instance.serverList[this.rustplus.serverId].oilRigLockedCrateUnlockTimeMs,
+                            (instance.serverList[this.rustplus.serverId]?.oilRigLockedCrateUnlockTimeMs ??
+                                Constants.DEFAULT_OIL_RIG_LOCKED_CRATE_UNLOCK_TIME_MS),
                             oilRigLocation.location);
                         this.crateSmallOilRigTimer.start();
 
@@ -475,7 +482,8 @@ class MapMarkers {
                         let instance = this.client.getInstance(this.rustplus.guildId);
                         this.crateLargeOilRigTimer = new Timer.timer(
                             this.notifyCrateLargeOilRigOpen.bind(this),
-                            instance.serverList[this.rustplus.serverId].oilRigLockedCrateUnlockTimeMs,
+                            (instance.serverList[this.rustplus.serverId]?.oilRigLockedCrateUnlockTimeMs ??
+                                Constants.DEFAULT_OIL_RIG_LOCKED_CRATE_UNLOCK_TIME_MS),
                             oilRigLocation.location);
                         this.crateLargeOilRigTimer.start();
 
@@ -564,7 +572,8 @@ class MapMarkers {
                 let instance = this.client.getInstance(this.rustplus.guildId);
                 this.cargoShipEgressTimers[marker.id] = new Timer.timer(
                     this.notifyCargoShipEgress.bind(this),
-                    instance.serverList[this.rustplus.serverId].cargoShipEgressTimeMs,
+                    (instance.serverList[this.rustplus.serverId]?.cargoShipEgressTimeMs ??
+                        Constants.DEFAULT_CARGO_SHIP_EGRESS_TIME_MS),
                     marker.id);
                 this.cargoShipEgressTimers[marker.id].start();
             }

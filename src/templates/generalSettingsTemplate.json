@@ -9,6 +9,7 @@
     "fcmAlarmNotificationEveryone": false,
     "smartAlarmNotifyInGame": true,
     "wakeupCallEnabled": true,
+    "markerEventsEnabled": false,
     "smartSwitchNotifyInGameWhenChangedFromDiscord": true,
     "leaderCommandEnabled": true,
     "leaderCommandOnlyForPaired": false,

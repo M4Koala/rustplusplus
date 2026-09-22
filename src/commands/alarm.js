@@ -58,7 +58,16 @@ module.exports = {
 						{ name: client.intlGet(guildId, 'smartSwitch'), value: 'smart_switch' },
 						{ name: client.intlGet(guildId, 'sprinkler'), value: 'sprinkler' },
 						{ name: client.intlGet(guildId, 'storageMonitor'), value: 'storage_monitor' },
-						{ name: client.intlGet(guildId, 'christmasLights'), value: 'xmas_light' })));
+						{ name: client.intlGet(guildId, 'christmasLights'), value: 'xmas_light' }))
+				.addStringOption(option => option
+					.setName('type')
+					.setDescription(client.intlGet(guildId, 'commandsAlarmEditTypeDesc'))
+					.setRequired(false)
+					.addChoices(
+						{ name: client.intlGet(guildId, 'alarmType_normal'), value: 'normal' },
+						{ name: client.intlGet(guildId, 'alarmType_small'), value: 'small' },
+						{ name: client.intlGet(guildId, 'alarmType_large'), value: 'large' },
+						{ name: client.intlGet(guildId, 'alarmType_oilrig'), value: 'oilrig' })));
 	},
 
 	async execute(client, interaction) {
@@ -75,6 +84,7 @@ module.exports = {
 			case 'edit': {
 				const entityId = interaction.options.getString('id');
 				const image = interaction.options.getString('image');
+				const type = interaction.options.getString('type');
 
 				const device = InstanceUtils.getSmartDevice(guildId, entityId);
 				if (device === null) {
@@ -87,6 +97,7 @@ module.exports = {
 				const entity = instance.serverList[device.serverId].alarms[entityId];
 
 				if (image !== null) instance.serverList[device.serverId].alarms[entityId].image = `${image}.png`;
+				if (type !== null) instance.serverList[device.serverId].alarms[entityId].type = type;
 				client.setInstance(guildId, instance);
 
 				client.log(client.intlGet(null, 'infoCap'), client.intlGet(null, 'slashCommandValueChange', {

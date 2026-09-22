@@ -185,17 +185,62 @@ async function messageBroadcastEntityChangedSmartAlarm(rustplus, client, message
     if (active) {
         server.alarms[entityId].lastTrigger = Math.floor(new Date() / 1000);
         client.setInstance(rustplus.guildId, instance);
-        await DiscordMessages.sendSmartAlarmTriggerMessage(rustplus.guildId, serverId, entityId);
 
-        if (instance.generalSettings.smartAlarmNotifyInGame) {
-            rustplus.sendInGameMessage(`${server.alarms[entityId].name}: ${server.alarms[entityId].message}`);
+        const alarmType = server.alarms[entityId].type ?? 'normal';
+
+        if (alarmType === 'normal') {
+            await DiscordMessages.sendSmartAlarmTriggerMessage(rustplus.guildId, serverId, entityId);
+
+            if (instance.generalSettings.smartAlarmNotifyInGame) {
+                rustplus.sendInGameMessage(`${server.alarms[entityId].name}: ${server.alarms[entityId].message}`);
+            }
+
+            WakeupHandler.requestWakeup(client, rustplus, rustplus.guildId,
+                server.alarms[entityId].name, server.alarms[entityId].message);
         }
-
-        WakeupHandler.requestWakeup(client, rustplus, rustplus.guildId,
-            server.alarms[entityId].name, server.alarms[entityId].message);
+        else {
+            /* RF-detected event (e.g. oil rig locked crate on 4765/4768 wired to this alarm):
+               post it like the old map marker events (events channel, voice, in-game per
+               settings) and skip the ntfy wake-up call entirely. force=true bypasses the
+               markerEventsEnabled gate because this trigger needs no map marker data. */
+            await sendAlarmAsEvent(client, rustplus, server.alarms[entityId], alarmType);
+        }
     }
 
     DiscordMessages.sendSmartAlarmMessage(rustplus.guildId, rustplus.serverId, entityId);
+}
+
+/* Route a Smart Alarm trigger with a non-normal type into the (marker-dead) event channels as
+   a forced event, reviving oil-rig/large/small-call notifications via in-game RF setups. */
+async function sendAlarmAsEvent(client, rustplus, alarm, alarmType) {
+    const map = {
+        small: {
+            setting: rustplus.notificationSettings.patrolHelicopterDetectedSetting,
+            event: 'small', textKey: 'alarmEventSmallCall',
+            color: Constants.COLOR_PATROL_HELICOPTER_ENTERS_MAP
+        },
+        large: {
+            setting: rustplus.notificationSettings.heavyScientistCalledSetting,
+            event: 'large', textKey: 'alarmEventLargeCall',
+            color: Constants.COLOR_HEAVY_SCIENTISTS_CALLED_LARGE
+        },
+        oilrig: {
+            setting: rustplus.notificationSettings.chinook47DetectedSetting,
+            event: 'chinook', textKey: 'alarmEventOilRig',
+            color: Constants.COLOR_CHINOOK47_ENTERS_MAP
+        }
+    };
+
+    const mapped = map[alarmType];
+    if (!mapped || !mapped.setting) {
+        /* Unknown type on a live trigger, fall back to the normal path. */
+        await DiscordMessages.sendSmartAlarmTriggerMessage(rustplus.guildId, rustplus.serverId, alarm.id);
+        WakeupHandler.requestWakeup(client, rustplus, rustplus.guildId, alarm.name, alarm.message);
+        return;
+    }
+
+    const text = `${client.intlGet(rustplus.guildId, mapped.textKey)} [${alarm.name}: ${alarm.message}]`;
+    await rustplus.sendEvent(mapped.setting, text, mapped.event, mapped.color, false, null, true);
 }
 
 async function messageBroadcastEntityChangedStorageMonitor(rustplus, client, message) {

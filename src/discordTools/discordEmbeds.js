@@ -124,9 +124,93 @@ module.exports = {
         });
     },
 
+    /* Tracker fed by the direct server query (serverQueryHandler) instead of Battlemetrics. */
+    getTrackerServerQueryEmbed: function (guildId, trackerId) {
+        const instance = Client.client.getInstance(guildId);
+        const tracker = instance.trackers[trackerId];
+        const ServerQueryHandler = require('../handlers/serverQueryHandler.js');
+        const state = Client.client.serverQueryState ? Client.client.serverQueryState[trackerId] : undefined;
+
+        let description = `__**${Client.client.intlGet(guildId, 'sqQueryAddress')}:**__ \`${tracker.queryAddress}\`\n`;
+
+        if (state && state.lastError) {
+            description += `${Constants.WARNING_EMOJI} ${Client.client.intlGet(guildId, 'sqQueryFailed')}\n`;
+        }
+        else if (state && state.lastOk !== null) {
+            description += `__**${Client.client.intlGet(guildId, 'serverStatus')}:**__ ${Constants.ONLINE_EMOJI} ` +
+                `(${Client.client.intlGet(guildId, 'sqPlayersOnline', { count: state.playerCount })})\n`;
+        }
+        else {
+            description += `__**${Client.client.intlGet(guildId, 'serverStatus')}:**__ ${Constants.NOT_FOUND_EMOJI}\n`;
+        }
+
+        const nameMaxLength = Constants.EMBED_FIELD_MAX_WIDTH_LENGTH_3;
+        let playerName = '', playerStats = '', playerStatus = '';
+        for (const player of tracker.players) {
+            const key = player.steamId !== null ? `${player.steamId}` : (player.name ?? '').toLowerCase();
+            const online = state && state.online ? state.online[key] : null;
+            const lastSession = Client.client.serverQueryHistory &&
+                Client.client.serverQueryHistory[guildId] &&
+                Client.client.serverQueryHistory[guildId][key] ?
+                Client.client.serverQueryHistory[guildId][key].sessions.filter(e => e.out !== null).pop() : null;
+
+            let name = `${player.name}`;
+            name = name.length <= nameMaxLength ? name : name.substring(0, nameMaxLength - 2) + '..';
+            name += '\n';
+
+            let stats = '';
+            const hours = ServerQueryHandler.hoursLastDays(Client.client, guildId, key, 7);
+            stats += hours !== null ? Client.client.intlGet(guildId, 'sqHoursLast7Days', { hours: hours }) : '';
+            stats += '\n';
+
+            let status = '';
+            if (online) {
+                const since = Math.floor((Date.now() - online) / 1000);
+                status += `${Constants.ONLINE_EMOJI} [${Timer.secondsToFullScale(since)}]\n`;
+            }
+            else {
+                const lastOut = lastSession ? lastSession.out : null;
+                status += `${Constants.OFFLINE_EMOJI} `;
+                status += lastOut !== null ? `<t:${Math.floor(lastOut / 1000)}:R>\n` : '\n';
+            }
+
+            playerName += name;
+            playerStats += stats;
+            playerStatus += status;
+        }
+
+        return module.exports.getEmbed({
+            title: `${tracker.name}`,
+            color: Constants.COLOR_DEFAULT,
+            description: description,
+            thumbnail: `${tracker.img}`,
+            footer: { text: `${tracker.title}` },
+            fields: [
+                {
+                    name: `__${Client.client.intlGet(guildId, 'name')}__\n​`,
+                    value: playerName !== '' ? playerName : Client.client.intlGet(guildId, 'empty'),
+                    inline: true
+                },
+                {
+                    name: `__${Client.client.intlGet(guildId, 'sqLast7Days')}__\n​`,
+                    value: playerStats !== '' ? playerStats : Client.client.intlGet(guildId, 'empty'),
+                    inline: true
+                },
+                {
+                    name: `__${Client.client.intlGet(guildId, 'status')}__\n​`,
+                    value: playerStatus !== '' ? playerStatus : Client.client.intlGet(guildId, 'empty'),
+                    inline: true
+                }],
+            timestamp: true
+        });
+    },
+
     getTrackerEmbed: function (guildId, trackerId) {
         const instance = Client.client.getInstance(guildId);
         const tracker = instance.trackers[trackerId];
+
+        if (tracker.queryAddress) return module.exports.getTrackerServerQueryEmbed(guildId, trackerId);
+
         const battlemetricsId = tracker.battlemetricsId;
         const bmInstance = Client.client.battlemetricsInstances[battlemetricsId];
 

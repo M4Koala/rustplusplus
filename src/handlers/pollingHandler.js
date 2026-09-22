@@ -29,6 +29,8 @@ const TeamHandler = require('../handlers/teamHandler.js');
 const Time = require('../structures/Time');
 const TimeHandler = require('../handlers/timeHandler.js');
 const VendingMachines = require('../handlers/vendingMachineHandler.js');
+const Constants = require('../util/constants.js');
+const DiscordMessages = require('../discordTools/discordMessages.js');
 
 module.exports = {
     pollingHandler: async function (rustplus, client) {
@@ -81,5 +83,19 @@ module.exports = {
         await InformationHandler.handler(rustplus);
         await StorageMonitorHandler.handler(rustplus, client);
         await SmartAlarmHandler.handler(rustplus, client);
+
+        /* One-time explanation in the events channel that the marker-based trackers are off
+           because Facepunch removed the marker data from Rust+ (Power Trip update, 6 Aug 2026). */
+        if (rustplus.isFirstPoll && !rustplus.generalSettings.markerEventsEnabled) {
+            const instance = client.getInstance(rustplus.guildId);
+            if (!instance.notifiedMarkerEventsEol) {
+                instance.notifiedMarkerEventsEol = true;
+                client.setInstance(rustplus.guildId, instance);
+
+                await DiscordMessages.sendDiscordEventMessage(rustplus.guildId, rustplus.serverId,
+                    client.intlGet(rustplus.guildId, 'markerEventsEolNotice'),
+                    'oil_rig_logo.png', Constants.COLOR_SETTINGS);
+            }
+        }
     },
 };

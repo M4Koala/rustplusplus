@@ -71,6 +71,9 @@ module.exports = {
                 for (const [trackerId, content] of Object.entries(instance.trackers)) {
                     /* One malformed tracker must not stop the rest from refreshing. */
                     try {
+                        /* Query-backed trackers are refreshed by serverQueryHandler. */
+                        if (content.queryAddress) continue;
+
                         const battlemetricsId = content.battlemetricsId;
                         const bmInstance = client.battlemetricsInstances[battlemetricsId];
                         const available = bmInstance && bmInstance.lastUpdateSuccessful ? true : false;

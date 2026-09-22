@@ -15,3 +15,17 @@ The config file should look something like this (NOTE: key below is invalid):
     }
 
 If no token is obtained, tracker functionality will be disabled.
+## Free alternative: direct server query tracking (this fork)
+
+Without a Battlemetrics token, trackers still work — they query the Rust server directly over
+the Steam server browser protocol (A2S), for free:
+
+- Every server you pair gets a tracker-capable **query address** (`ip:port`), editable in the
+  tracker edit modal if your server's query port differs (default port 28015).
+- Add watched players by **SteamID64** (their profile can be private — presence comes from the
+  server's public player list, not the profile) or by name.
+- The tracker embed shows **on server / not on server**, connected-for and **hours on server
+  over the last 7 days**; connect/disconnect are announced in the trackers channel.
+- Limitations vs Battlemetrics: matching in the player list is by name (name changes need a
+  manual rename of the watched entry), and servers hidden from the server browser cannot be
+  queried.

@@ -29,6 +29,7 @@
         "discord-api-types": "^0.38.14",
         "discord.js": "^14.21.0",
         "ffmpeg-static": "^5.1.0",
+        "gamedig": "^5.3.3",
         "gm": "^1.25.0",
         "jimp": "^0.22.7",
         "libsodium-wrappers": "^0.7.11",
