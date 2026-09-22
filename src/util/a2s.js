@@ -139,14 +139,14 @@ function parsePlayers(payload) {
         r.byte(); /* player index */
         const name = r.cstring();
         r.int32(); /* score */
-        r.float(); /* time on server */
+        const time = r.float(); /* seconds on server */
 
         let steamId = null;
         if (r.remaining() > 0) {
             const extra = r.cstring();
             if (/^\d{17}$/.test(extra)) steamId = extra;
         }
-        players.push({ name, steamId });
+        players.push({ name, steamId, time });
     }
     return players;
 }

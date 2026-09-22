@@ -29,3 +29,12 @@ the Steam server browser protocol (A2S), for free:
 - Limitations vs Battlemetrics: matching in the player list is by name (name changes need a
   manual rename of the watched entry), and servers hidden from the server browser cannot be
   queried.
+
+## Name -> SteamID resolver
+
+In-game names are not unique and can change. When you meet someone and only know
+their name: type `!steamid <name>` in the in-game chat (or `/lookup name:<name>`
+in Discord). The bot queries the live server player list (which carries the
+SteamID64 per entry) and lists every matching player with their SteamID. Pick the
+right one and add it to a tracker (Tracker -> Add player: name + SteamID64);
+after that the tracker follows the ID even if they rename.
