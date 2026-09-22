@@ -109,7 +109,12 @@ module.exports = async (client, guild, forced = false) => {
             if (!messageSetting || !Constants.DEPRECATED_MARKER_EVENTS.includes(messageSetting)) continue;
 
             const currentTitle = message.embeds?.[0]?.title ?? '';
-            if (currentTitle.startsWith('🚫')) continue;
+            const expectedNote = client.intlGet(guild.id,
+                ['heavyScientistCalledSetting', 'lockedCrateOilRigUnlockedSetting'].includes(messageSetting)
+                    ? 'markerEventsOilRigWorkaroundNote' : 'markerEventsUnsupportedNote');
+            const currentNote = message.embeds?.[0]?.fields?.find(
+                f => f.name === client.intlGet(guild.id, 'noteCap'))?.value ?? '';
+            if (currentTitle.startsWith('🚫') && currentNote === expectedNote) continue;
 
             try {
                 const settingEntry = instance.notificationSettings[messageSetting];
@@ -120,7 +125,10 @@ module.exports = async (client, guild, forced = false) => {
                         thumbnail: `attachment://${settingEntry.image}`,
                         fields: [{
                             name: client.intlGet(guild.id, 'noteCap'),
-                            value: client.intlGet(guild.id, 'markerEventsUnsupportedNote'),
+                            value: client.intlGet(guild.id,
+                                ['heavyScientistCalledSetting', 'lockedCrateOilRigUnlockedSetting']
+                                    .includes(messageSetting)
+                                    ? 'markerEventsOilRigWorkaroundNote' : 'markerEventsUnsupportedNote'),
                             inline: false
                         }]
                     })],
@@ -416,6 +424,8 @@ async function sendNotificationSetting(client, guildId, channel, setting) {
     const instance = client.getInstance(guildId);
 
     const deprecated = Constants.DEPRECATED_MARKER_EVENTS.includes(setting);
+    /* The oil rig events are deprecated as marker data but reachable via RF (typed alarms). */
+    const oilRigWorkaround = ['heavyScientistCalledSetting', 'lockedCrateOilRigUnlockedSetting'].includes(setting);
 
     await client.messageSend(channel, {
         embeds: [DiscordEmbeds.getEmbed({
@@ -424,7 +434,8 @@ async function sendNotificationSetting(client, guildId, channel, setting) {
             thumbnail: `attachment://${instance.notificationSettings[setting].image}`,
             fields: deprecated ? [{
                 name: client.intlGet(guildId, 'noteCap'),
-                value: client.intlGet(guildId, 'markerEventsUnsupportedNote'),
+                value: client.intlGet(guildId, oilRigWorkaround
+                    ? 'markerEventsOilRigWorkaroundNote' : 'markerEventsUnsupportedNote'),
                 inline: false
             }] : []
         })],
