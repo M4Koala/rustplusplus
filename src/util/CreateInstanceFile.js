@@ -119,6 +119,22 @@ module.exports = (client, guild) => {
             }
         }
 
+        /* One-time migration: Facepunch's Power Trip update (6 Aug 2026) removed the map marker
+           data behind these settings, so turn their (still enabled) toggles off once instead of
+           leaving dead-but-on settings in #settings. Only while markerEventsEnabled is off; a
+           user re-enabling that flag owns the individual toggles again. Typed oil-rig alarms are
+           unaffected (they post their events with force=true). */
+        if (instance.generalSettings.markerEventsEnabled === false
+            && instance.deprecatedMarkerSettingsDisabled !== true) {
+            const Constants = require('../util/constants.js');
+            for (const key of Constants.DEPRECATED_MARKER_EVENTS) {
+                if (instance.notificationSettings.hasOwnProperty(key)) {
+                    instance.notificationSettings[key].enabled = false;
+                }
+            }
+            instance.deprecatedMarkerSettingsDisabled = true;
+        }
+
         if (!instance.hasOwnProperty('channelId')) {
             instance.channelId = {
                 category: null,

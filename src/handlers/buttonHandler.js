@@ -1137,7 +1137,7 @@ module.exports = async (client, interaction) => {
         const modal = DiscordModals.getGroupRemoveSwitchModal(guildId, ids.serverId, ids.groupId);
         await interaction.showModal(modal);
     }
-    else if (Config.battlemetrics.token !== '' && interaction.customId.startsWith('TrackerEveryone')) {
+    else if (interaction.customId.startsWith('TrackerEveryone')) {
         const ids = JSON.parse(interaction.customId.replace('TrackerEveryone', ''));
         const tracker = instance.trackers[ids.trackerId];
 
@@ -1156,7 +1156,7 @@ module.exports = async (client, interaction) => {
 
         await DiscordMessages.sendTrackerMessage(guildId, ids.trackerId, interaction);
     }
-    else if (Config.battlemetrics.token !== '' && interaction.customId.startsWith('TrackerUpdate')) {
+    else if (interaction.customId.startsWith('TrackerUpdate')) {
         const ids = JSON.parse(interaction.customId.replace('TrackerUpdate', ''));
         const tracker = instance.trackers[ids.trackerId];
 
@@ -1169,7 +1169,7 @@ module.exports = async (client, interaction) => {
 
         await DiscordMessages.sendTrackerMessage(guildId, ids.trackerId, interaction);
     }
-    else if (Config.battlemetrics.token !== '' && interaction.customId.startsWith('TrackerEdit')) {
+    else if (interaction.customId.startsWith('TrackerEdit')) {
         const ids = JSON.parse(interaction.customId.replace('TrackerEdit', ''));
         const tracker = instance.trackers[ids.trackerId];
 
@@ -1181,7 +1181,7 @@ module.exports = async (client, interaction) => {
         const modal = DiscordModals.getTrackerEditModal(guildId, ids.trackerId);
         await interaction.showModal(modal);
     }
-    else if (Config.battlemetrics.token !== '' && interaction.customId.startsWith('TrackerDelete')) {
+    else if (interaction.customId.startsWith('TrackerDelete')) {
         const ids = JSON.parse(interaction.customId.replace('TrackerDelete', ''));
         const tracker = instance.trackers[ids.trackerId];
 
@@ -1201,7 +1201,7 @@ module.exports = async (client, interaction) => {
         delete instance.trackers[ids.trackerId];
         client.setInstance(guildId, instance);
     }
-    else if (Config.battlemetrics.token !== '' && interaction.customId.startsWith('TrackerAddPlayer')) {
+    else if (interaction.customId.startsWith('TrackerAddPlayer')) {
         const ids = JSON.parse(interaction.customId.replace('TrackerAddPlayer', ''));
         const tracker = instance.trackers[ids.trackerId];
 
@@ -1213,7 +1213,7 @@ module.exports = async (client, interaction) => {
         const modal = DiscordModals.getTrackerAddPlayerModal(guildId, ids.trackerId);
         await interaction.showModal(modal);
     }
-    else if (Config.battlemetrics.token !== '' && interaction.customId.startsWith('TrackerRemovePlayer')) {
+    else if (interaction.customId.startsWith('TrackerRemovePlayer')) {
         const ids = JSON.parse(interaction.customId.replace('TrackerRemovePlayer', ''));
         const tracker = instance.trackers[ids.trackerId];
 
@@ -1225,7 +1225,7 @@ module.exports = async (client, interaction) => {
         const modal = DiscordModals.getTrackerRemovePlayerModal(guildId, ids.trackerId);
         await interaction.showModal(modal);
     }
-    else if (Config.battlemetrics.token !== '' && interaction.customId.startsWith('TrackerInGame')) {
+    else if (interaction.customId.startsWith('TrackerInGame')) {
         const ids = JSON.parse(interaction.customId.replace('TrackerInGame', ''));
         const tracker = instance.trackers[ids.trackerId];
 
