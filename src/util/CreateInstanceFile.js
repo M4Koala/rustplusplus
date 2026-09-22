@@ -125,14 +125,22 @@ module.exports = (client, guild) => {
            user re-enabling that flag owns the individual toggles again. Typed oil-rig alarms are
            unaffected (they post their events with force=true). */
         if (instance.generalSettings.markerEventsEnabled === false
-            && instance.deprecatedMarkerSettingsDisabled !== true) {
+            && instance.deprecatedMarkerSettingsDisabledV2 !== true) {
             const Constants = require('../util/constants.js');
             for (const key of Constants.DEPRECATED_MARKER_EVENTS) {
                 if (instance.notificationSettings.hasOwnProperty(key)) {
                     instance.notificationSettings[key].enabled = false;
+                    /* heavyScientistCalledSetting + lockedCrateOilRigUnlockedSetting drive the
+                       RF-routed typed alarms (sendEvent force=true), so keep their discord/
+                       inGame/voice choices; the purely marker-sourced ones get cleared. */
+                    if (key !== 'heavyScientistCalledSetting' && key !== 'lockedCrateOilRigUnlockedSetting') {
+                        instance.notificationSettings[key].discord = false;
+                        instance.notificationSettings[key].inGame = false;
+                        instance.notificationSettings[key].voice = false;
+                    }
                 }
             }
-            instance.deprecatedMarkerSettingsDisabled = true;
+            instance.deprecatedMarkerSettingsDisabledV2 = true;
         }
 
         if (!instance.hasOwnProperty('channelId')) {

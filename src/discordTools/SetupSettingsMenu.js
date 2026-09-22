@@ -88,6 +88,54 @@ module.exports = async (client, guild, forced = false) => {
                 await sendNotificationSetting(client, guild.id, channel, setting);
             }
         }
+
+        /* Deprecated marker-event settings keep their months-old message (posted before the
+           Rust+ Power Trip change) with green toggles and no warning. Rewrite those in place
+           once: 🚫 title + note, buttons rendered off. Identified via their button customIds;
+           messages whose title already carries the marker are left alone. */
+        for (const message of existingMessages.values()) {
+            let messageSetting = null;
+            for (const row of message.components ?? []) {
+                for (const component of row.components ?? []) {
+                    const customId = component.customId ?? '';
+                    if (customId.startsWith('DiscordNotification')) {
+                        try {
+                            messageSetting = JSON.parse(customId.replace('DiscordNotification', '')).setting;
+                        }
+                        catch (e) { /* Ignore */ }
+                    }
+                }
+            }
+            if (!messageSetting || !Constants.DEPRECATED_MARKER_EVENTS.includes(messageSetting)) continue;
+
+            const currentTitle = message.embeds?.[0]?.title ?? '';
+            if (currentTitle.startsWith('🚫')) continue;
+
+            try {
+                const settingEntry = instance.notificationSettings[messageSetting];
+                await message.edit({
+                    embeds: [DiscordEmbeds.getEmbed({
+                        color: Constants.COLOR_SETTINGS,
+                        title: '🚫 ' + client.intlGet(guild.id, messageSetting),
+                        thumbnail: `attachment://${settingEntry.image}`,
+                        fields: [{
+                            name: client.intlGet(guild.id, 'noteCap'),
+                            value: client.intlGet(guild.id, 'markerEventsUnsupportedNote'),
+                            inline: false
+                        }]
+                    })],
+                    components: [DiscordButtons.getNotificationButtons(
+                        guild.id, messageSetting,
+                        settingEntry.discord, settingEntry.inGame, settingEntry.voice)],
+                    files: [new Discord.AttachmentBuilder(
+                        Path.join(__dirname, '..', `resources/images/events/${settingEntry.image}`))]
+                });
+            }
+            catch (e) {
+                client.log(client.intlGet(null, 'warningCap'),
+                    `Could not refresh deprecated setting message for ${messageSetting}: ${e.message}`);
+            }
+        }
     }
 
 };
