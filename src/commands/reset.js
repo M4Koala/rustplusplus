@@ -118,7 +118,9 @@ module.exports = {
 					await require('../discordTools/SetupStorageMonitors')(client, rustplus);
 				}
 
-				await require('../discordTools/SetupTrackers')(client, guild);
+				if (Config.battlemetrics.token !== '') {
+					await require('../discordTools/SetupTrackers')(client, guild);
+				}
 
 				await PermissionHandler.resetPermissionsAllChannels(client, guild);
 

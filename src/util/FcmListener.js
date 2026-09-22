@@ -32,6 +32,7 @@ const InstanceUtils = require('../util/instanceUtils.js');
 const Map = require('../util/map.js');
 const WakeupHandler = require('../handlers/wakeupHandler.js');
 const Scrape = require('../util/scrape.js');
+const Config = require('../../config');
 
 module.exports = async (client, guild) => {
     const credentials = InstanceUtils.readCredentialsFile(guild.id);
@@ -235,13 +236,19 @@ async function pairingServerHandler(client, guild, title, message, body) {
     const serverId = `${body.ip}-${body.port}`;
     const server = instance.serverList[serverId];
 
-    let battlemetricsId = null;
-    const bmInstance = new Battlemetrics(null, title);
-    await bmInstance.setup();
-    if (bmInstance.lastUpdateSuccessful) {
-        battlemetricsId = bmInstance.id;
-        if (!client.battlemetricsInstances.hasOwnProperty(bmInstance.id)) {
-            client.battlemetricsInstances[bmInstance.id] = bmInstance;
+    /* messageObj deliberately not resolved here: the fork keeps messageId from the previous
+       instance.serverList[serverId] entry below (resolving raced the connect flow, duplicate cards). */
+    let battlemetricsId = server?.battlemetricsId ?? null;
+    let connect = server?.connect ?? null;
+    if (Config.battlemetrics.token !== '') {
+        const bmInstance = new Battlemetrics(null, title);
+        await bmInstance.setup();
+        if (bmInstance.lastUpdateSuccessful) {
+            battlemetricsId = bmInstance.id;
+            connect = `connect ${bmInstance.server_ip}:${bmInstance.server_port}`;
+            if (!client.battlemetricsInstances.hasOwnProperty(bmInstance.id)) {
+                client.battlemetricsInstances[bmInstance.id] = bmInstance;
+            }
         }
     }
 
@@ -265,8 +272,7 @@ async function pairingServerHandler(client, guild, title, message, body) {
            flow and produced duplicate server cards. */
         messageId: instance.serverList[serverId] ? instance.serverList[serverId].messageId : null,
         battlemetricsId: battlemetricsId,
-        connect: (!bmInstance.lastUpdateSuccessful) ? null :
-            `connect ${bmInstance.server_ip}:${bmInstance.server_port}`,
+        connect: connect,
         cargoShipEgressTimeMs: server ? server.cargoShipEgressTimeMs : Constants.DEFAULT_CARGO_SHIP_EGRESS_TIME_MS,
         oilRigLockedCrateUnlockTimeMs: server ? server.oilRigLockedCrateUnlockTimeMs :
             Constants.DEFAULT_OIL_RIG_LOCKED_CRATE_UNLOCK_TIME_MS,
