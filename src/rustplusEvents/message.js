@@ -26,6 +26,7 @@ const InGameChatHandler = require('../handlers/inGameChatHandler.js');
 const SmartSwitchGroupHandler = require('../handlers/smartSwitchGroupHandler.js');
 const TeamChatHandler = require("../handlers/teamChatHandler.js");
 const TeamHandler = require('../handlers/teamHandler.js');
+const Timer = require('../util/timer');
 
 module.exports = {
     name: 'message',
@@ -203,7 +204,7 @@ async function messageBroadcastEntityChangedSmartAlarm(rustplus, client, message
                post it like the old map marker events (events channel, voice, in-game per
                settings) and skip the ntfy wake-up call entirely. force=true bypasses the
                markerEventsEnabled gate because this trigger needs no map marker data. */
-            await sendAlarmAsEvent(client, rustplus, server.alarms[entityId], alarmType);
+            await sendAlarmAsEvent(client, rustplus, server, server.alarms[entityId], alarmType);
         }
     }
 
@@ -211,23 +212,36 @@ async function messageBroadcastEntityChangedSmartAlarm(rustplus, client, message
 }
 
 /* Route a Smart Alarm trigger with a non-normal type into the (marker-dead) event channels as
-   a forced event, reviving oil-rig/large/small-call notifications via in-game RF setups. */
-async function sendAlarmAsEvent(client, rustplus, alarm, alarmType) {
+   forced events, reproducing exactly what the old CH-47-oil-rig marker events produced:
+   "Heavy Scientists got called to the (Small|Large) Oil Rig at {location}." followed by the
+   "Locked Crate ... unlocked." event once the crate unlock time passes. The location shown is
+   the alarm's own configured name (e.g. name it 'Small Oil Rig 4765'), since marker data —
+   and with it the map position — no longer reaches Rust+. force=true bypasses the
+   markerEventsEnabled gate because these triggers need no map marker data. */
+async function sendAlarmAsEvent(client, rustplus, server, alarm, alarmType) {
+    /* Legacy value from the first iteration of this feature. */
+    if (alarmType === 'oilrig') alarmType = 'large';
+
     const map = {
         small: {
-            setting: rustplus.notificationSettings.patrolHelicopterDetectedSetting,
-            event: 'small', textKey: 'alarmEventSmallCall',
-            color: Constants.COLOR_PATROL_HELICOPTER_ENTERS_MAP
+            setting: rustplus.notificationSettings.heavyScientistCalledSetting,
+            event: 'small', textKey: 'heavyScientistsCalledSmall',
+            color: Constants.COLOR_HEAVY_SCIENTISTS_CALLED_SMALL,
+            image: 'small_oil_rig_logo.png',
+            crateSetting: rustplus.notificationSettings.lockedCrateOilRigUnlockedSetting,
+            crateTextKey: 'lockedCrateSmallOilRigUnlocked',
+            crateColor: Constants.COLOR_LOCKED_CRATE_SMALL_OILRIG_UNLOCKED,
+            crateImage: 'locked_crate_small_oil_rig_logo.png'
         },
         large: {
             setting: rustplus.notificationSettings.heavyScientistCalledSetting,
-            event: 'large', textKey: 'alarmEventLargeCall',
-            color: Constants.COLOR_HEAVY_SCIENTISTS_CALLED_LARGE
-        },
-        oilrig: {
-            setting: rustplus.notificationSettings.chinook47DetectedSetting,
-            event: 'chinook', textKey: 'alarmEventOilRig',
-            color: Constants.COLOR_CHINOOK47_ENTERS_MAP
+            event: 'large', textKey: 'heavyScientistsCalledLarge',
+            color: Constants.COLOR_HEAVY_SCIENTISTS_CALLED_LARGE,
+            image: 'large_oil_rig_logo.png',
+            crateSetting: rustplus.notificationSettings.lockedCrateOilRigUnlockedSetting,
+            crateTextKey: 'lockedCrateLargeOilRigUnlocked',
+            crateColor: Constants.COLOR_LOCKED_CRATE_LARGE_OILRIG_UNLOCKED,
+            crateImage: 'locked_crate_large_oil_rig_logo.png'
         }
     };
 
@@ -239,8 +253,32 @@ async function sendAlarmAsEvent(client, rustplus, alarm, alarmType) {
         return;
     }
 
-    const text = `${client.intlGet(rustplus.guildId, mapped.textKey)} [${alarm.name}: ${alarm.message}]`;
-    await rustplus.sendEvent(mapped.setting, text, mapped.event, mapped.color, false, null, true);
+    /* The alarm's own name doubles as the location string of the old marker events. */
+    const location = alarm.name;
+
+    await rustplus.sendEvent(mapped.setting,
+        client.intlGet(rustplus.guildId, mapped.textKey, { location: location }),
+        mapped.event, mapped.color, false, mapped.image, true);
+
+    /* The old events also armed a timer for the crate unlock notification. */
+    if (!rustplus.alarmOilRigCrateTimers) rustplus.alarmOilRigCrateTimers = { small: null, large: null };
+
+    if (rustplus.alarmOilRigCrateTimers[mapped.event]) {
+        rustplus.alarmOilRigCrateTimers[mapped.event].stop();
+    }
+
+    const unlockTimeMs = client.getInstance(rustplus.guildId).serverList[rustplus.serverId]?.
+        oilRigLockedCrateUnlockTimeMs ?? Constants.DEFAULT_OIL_RIG_LOCKED_CRATE_UNLOCK_TIME_MS;
+
+    rustplus.alarmOilRigCrateTimers[mapped.event] = new Timer.timer(
+        async (args) => {
+            await rustplus.sendEvent(mapped.crateSetting,
+                client.intlGet(rustplus.guildId, mapped.crateTextKey, { location: args[0] }),
+                mapped.event, mapped.crateColor, false, mapped.crateImage, true);
+            rustplus.alarmOilRigCrateTimers[mapped.event] = null;
+        },
+        unlockTimeMs, location);
+    rustplus.alarmOilRigCrateTimers[mapped.event].start();
 }
 
 async function messageBroadcastEntityChangedStorageMonitor(rustplus, client, message) {

@@ -66,8 +66,7 @@ module.exports = {
 					.addChoices(
 						{ name: client.intlGet(guildId, 'alarmType_normal'), value: 'normal' },
 						{ name: client.intlGet(guildId, 'alarmType_small'), value: 'small' },
-						{ name: client.intlGet(guildId, 'alarmType_large'), value: 'large' },
-						{ name: client.intlGet(guildId, 'alarmType_oilrig'), value: 'oilrig' })));
+						{ name: client.intlGet(guildId, 'alarmType_large'), value: 'large' })));
 	},
 
 	async execute(client, interaction) {

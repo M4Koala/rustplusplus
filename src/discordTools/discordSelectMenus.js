@@ -319,4 +319,32 @@ module.exports = {
                     }]
             }));
     },
+
+    getSmartAlarmTypeSelectMenu: function (guildId, serverId, entityId) {
+        const instance = Client.client.getInstance(guildId);
+        const entity = instance.serverList[serverId].alarms[entityId];
+        const current = (entity.type ?? 'normal') === 'oilrig' ? 'large' : (entity.type ?? 'normal');
+
+        return new Discord.ActionRowBuilder().addComponents(
+            module.exports.getSelectMenu({
+                customId: `SmartAlarmType${JSON.stringify({ serverId: serverId, entityId: entityId })}`,
+                placeholder: Client.client.intlGet(guildId, `alarmType_${current}`),
+                options: [
+                    {
+                        label: Client.client.intlGet(guildId, 'alarmType_normal'),
+                        description: Client.client.intlGet(guildId, 'alarmTypeNormalDesc'),
+                        value: 'normal'
+                    },
+                    {
+                        label: Client.client.intlGet(guildId, 'alarmType_small'),
+                        description: Client.client.intlGet(guildId, 'alarmTypeSmallDesc'),
+                        value: 'small'
+                    },
+                    {
+                        label: Client.client.intlGet(guildId, 'alarmType_large'),
+                        description: Client.client.intlGet(guildId, 'alarmTypeLargeDesc'),
+                        value: 'large'
+                    }]
+            }));
+    },
 }

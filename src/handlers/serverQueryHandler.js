@@ -23,14 +23,16 @@ const Path = require('path');
 
 const { GameDig } = require('gamedig');
 
+const A2S = require('../util/a2s.js');
 const DiscordMessages = require('../discordTools/discordMessages.js');
 const Timer = require('../util/timer');
 
 /* Free replacement for the (paid) Battlemetrics player tracking: query the Rust server
    directly over the Steam server browser protocol (A2S) and watch for specific players
    being on the server. Works for any player regardless of their profile privacy.
-   A2S player lists only carry names, so watched players are matched by name
-   (case-insensitive) — the SteamID stays as a stable identifier/link for the row. */
+   Players are matched by SteamID (Rust embeds them in its A2S player entries, parsed by
+   util/a2s.js), which survives in-game renames — names are repaired from the live list.
+   Name matching is only the fallback when a server hides the SteamIDs. */
 
 const POLL_TIMEOUT_MS = 15000;
 const HISTORY_RETENTION_MS = 30 * 24 * 60 * 60 * 1000; /* Keep 30 days of sessions. */
@@ -88,26 +90,38 @@ module.exports = {
             playerCount: 0
         };
 
-        let data;
+        /* Rust appends the SteamID64 of every player to the A2S player entries; parsing that
+           ourselves (util/a2s.js) is what makes presence tracking immune to name changes.
+           gamedig stays as a name-only fallback for servers that don't expose the SteamIDs
+           (or confuse our parser). */
+        let players;
         try {
-            data = await GameDig.query({ type: 'rust', host, port, timeout: POLL_TIMEOUT_MS });
+            players = (await A2S.queryPlayers(host, port)).map(e =>
+                ({ name: e.name, lower: (e.name ?? '').toLowerCase(), steamId: e.steamId }));
         }
         catch (e) {
-            /* Server unreachable (down, hidden from browser). Do not synthesize disconnects —
-               keep last known state and surface the error on the embed instead. */
-            state.lastError = e.message;
-            await DiscordMessages.sendTrackerMessage(guildId, trackerId);
-            return;
+            try {
+                const data = await GameDig.query({ type: 'rust', host, port, timeout: POLL_TIMEOUT_MS });
+                players = (data.players ?? []).map(e =>
+                    ({ name: e.name, lower: (e.name ?? '').toLowerCase(), steamId: null }));
+            }
+            catch (e2) {
+                /* Server unreachable (down, hidden from browser). Do not synthesize
+                   disconnects — keep last known state and surface the error on the embed. */
+                state.lastError = e2.message;
+                await DiscordMessages.sendTrackerMessage(guildId, trackerId);
+                return;
+            }
         }
 
         state.lastError = null;
         state.lastOk = Math.floor(Date.now() / 1000);
-        const players = (data.players ?? []).map(e => ({ name: e.name, lower: (e.name ?? '').toLowerCase() }));
         state.playerCount = players.length;
 
         const firstPoll = state.prevLowers === null;
 
         /* Watched players are keyed by steamId when present, else by lower name. */
+        let renamed = false;
         for (const player of tracker.players) {
             const key = player.steamId !== null ? `${player.steamId}` : (player.name ?? '').toLowerCase();
             if (key === '' || key === 'null') continue;
@@ -118,7 +132,19 @@ module.exports = {
             if (!state.online.hasOwnProperty(key)) state.online[key] = null;
             if (!state.absent.hasOwnProperty(key)) state.absent[key] = 0;
 
-            const onServer = players.some(e => e.lower === lower);
+            /* SteamID match wins (immune to renames); name match is the fallback for
+               entries without a SteamID or servers that do not expose player SteamIDs. */
+            const watchedSteamId = player.steamId !== null ? `${player.steamId}` : null;
+            let matched;
+            if (watchedSteamId) matched = players.find(e => e.steamId === watchedSteamId);
+            if (!matched) matched = players.find(e => e.lower === lower);
+            const onServer = matched !== undefined;
+
+            /* Player renamed in-game: repair the tracked name from the live server list. */
+            if (matched && matched.name !== player.name) {
+                player.name = matched.name;
+                renamed = true;
+            }
 
             if (onServer) {
                 state.absent[key] = 0;
@@ -166,6 +192,18 @@ module.exports = {
         }
 
         state.prevLowers = new Set(players.map(e => e.lower));
+
+        if (renamed) {
+            /* Persist repaired names on a fresh read, merged so entries removed via the
+               Discord modal while we polled are not resurrected. */
+            const BattlemetricsHandler = require('./battlemetricsHandler.js');
+            const fresh = client.getInstance(guildId);
+            if (fresh.trackers.hasOwnProperty(trackerId)) {
+                fresh.trackers[trackerId].players = BattlemetricsHandler.mergeTrackerPlayers(
+                    fresh.trackers[trackerId].players, tracker.players);
+                client.setInstance(guildId, fresh);
+            }
+        }
 
         await DiscordMessages.sendTrackerMessage(guildId, trackerId);
     },

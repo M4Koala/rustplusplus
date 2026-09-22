@@ -492,11 +492,16 @@ async function alarmAlarm(client, guild, title, message, body) {
            same routing as the rustplus message path, but via a plain events channel post
            since there is no connected instance to sendEvent through. */
         const alarmType = server.alarms[entityId].type ?? 'normal';
-        if (alarmType !== 'normal') {
-            const textKeys = { small: 'alarmEventSmallCall', large: 'alarmEventLargeCall', oilrig: 'alarmEventOilRig' };
+        if (alarmType === 'small' || alarmType === 'large' || alarmType === 'oilrig') {
+            /* Legacy 'oilrig' value maps to large, matching the rustplus message path. */
+            const isSmall = alarmType === 'small';
             await DiscordMessages.sendDiscordEventMessage(guild.id, serverId,
-                `${client.intlGet(guild.id, textKeys[alarmType] ?? 'alarmEventOilRig')} [${title}: ${message}]`,
-                'oil_rig_logo.png', Constants.COLOR_SETTINGS);
+                client.intlGet(guild.id,
+                    isSmall ? 'heavyScientistsCalledSmall' : 'heavyScientistsCalledLarge',
+                    { location: title }),
+                isSmall ? 'small_oil_rig_logo.png' : 'large_oil_rig_logo.png',
+                isSmall ? Constants.COLOR_HEAVY_SCIENTISTS_CALLED_SMALL :
+                    Constants.COLOR_HEAVY_SCIENTISTS_CALLED_LARGE);
         }
         else {
             await DiscordMessages.sendSmartAlarmTriggerMessage(guild.id, serverId, entityId);

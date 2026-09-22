@@ -150,6 +150,28 @@ module.exports = async (client, interaction) => {
 
         DiscordMessages.sendSmartSwitchMessage(guildId, ids.serverId, ids.entityId, interaction);
     }
+    else if (interaction.customId.startsWith('SmartAlarmType')) {
+        const ids = JSON.parse(interaction.customId.replace('SmartAlarmType', ''));
+        const server = instance.serverList[ids.serverId];
+
+        if (!server || (server && !server.alarms.hasOwnProperty(ids.entityId))) {
+            await interaction.message.delete();
+            return;
+        }
+
+        const type = interaction.values[0];
+        if (['normal', 'small', 'large'].includes(type)) {
+            server.alarms[ids.entityId].type = type;
+            client.setInstance(guildId, instance);
+        }
+
+        client.log(client.intlGet(null, 'infoCap'), client.intlGet(null, 'selectMenuValueChange', {
+            id: `${verifyId}`,
+            value: `${server.alarms[ids.entityId].type}`
+        }));
+
+        await DiscordMessages.sendSmartAlarmMessage(guildId, ids.serverId, ids.entityId, interaction);
+    }
 
     client.log(client.intlGet(null, 'infoCap'), client.intlGet(null, 'userSelectMenuInteractionSuccess', {
         id: `${verifyId}`

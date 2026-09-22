@@ -140,7 +140,10 @@ module.exports = {
             embeds: [entity.reachable ?
                 DiscordEmbeds.getSmartAlarmEmbed(guildId, serverId, entityId) :
                 DiscordEmbeds.getNotFoundSmartDeviceEmbed(guildId, serverId, entityId, 'alarms')],
-            components: [DiscordButtons.getSmartAlarmButtons(guildId, serverId, entityId)],
+            components: [
+                DiscordButtons.getSmartAlarmButtons(guildId, serverId, entityId),
+                DiscordSelectMenus.getSmartAlarmTypeSelectMenu(guildId, serverId, entityId)
+            ],
             files: [new Discord.AttachmentBuilder(
                 Path.join(__dirname, '..', `resources/images/electrics/${entity.image}`))]
         }
