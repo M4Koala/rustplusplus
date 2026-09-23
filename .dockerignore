@@ -1,2 +1,12 @@
 docs/
 node_modules/
+
+# Runtime data: mounted as volumes (docker-compose.yml) and recreated by index.ts when
+# missing. Keeping them out of the build context keeps builds fast as maps/logs grow and
+# keeps credentials out of the image layers.
+.git/
+credentials/
+instances/
+logs/
+maps/
+temp/
