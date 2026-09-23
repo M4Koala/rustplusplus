@@ -888,6 +888,20 @@ module.exports = {
         const guildId = rustplus.guildId;
         const instance = Client.client.getInstance(guildId);
 
+        /* Every event below comes from map markers; without them each field would repeat the
+           same unsupported note, so state it once instead. */
+        if (rustplus.generalSettings.markerEventsEnabled === false) {
+            return module.exports.getEmbed({
+                title: Client.client.intlGet(guildId, 'eventInfo'),
+                color: Constants.COLOR_DEFAULT,
+                thumbnail: 'attachment://event_info_logo.png',
+                description: `${Client.client.intlGet(guildId, 'inGameEventInfo')}\n\n` +
+                    Client.client.intlGet(guildId, 'markerCommandUnsupported'),
+                footer: { text: instance.serverList[rustplus.serverId].title },
+                timestamp: true
+            });
+        }
+
         const cargoshipFieldName = Client.client.intlGet(guildId, 'cargoship');
         const patrolHelicopterFieldName = Client.client.intlGet(guildId, 'patrolHelicopter');
         const smallOilRigFieldName = Client.client.intlGet(guildId, 'smallOilRig');
