@@ -1556,9 +1556,73 @@ class RustPlus extends RustPlusLib {
         return strings;
     }
 
+    /* Oil rig status without map markers, from Smart Alarms of type small/large fed by an RF
+       Receiver (4765/4768, see rustplusEvents/message.js sendAlarmAsEvent). The alarm's last
+       trigger is persisted, so the crate countdown survives restarts. Null when no such
+       alarm is set up on this server. */
+    getRfOilRigState(event) {
+        const server = Client.client.getInstance(this.guildId).serverList[this.serverId];
+        if (!server) return null;
+
+        /* 'oilrig' is the legacy value for large. */
+        const alarms = Object.values(server.alarms ?? {}).filter(e =>
+            (e.type === 'oilrig' ? 'large' : e.type) === event);
+        if (alarms.length === 0) return null;
+
+        const latest = alarms.reduce((a, b) => (b.lastTrigger ?? 0) > (a.lastTrigger ?? 0) ? b : a);
+        const unlockTimeMs = server.oilRigLockedCrateUnlockTimeMs ??
+            Constants.DEFAULT_OIL_RIG_LOCKED_CRATE_UNLOCK_TIME_MS;
+        const triggeredAtMs = latest.lastTrigger ? latest.lastTrigger * 1000 : null;
+        return {
+            location: latest.name,
+            triggeredAtMs: triggeredAtMs,
+            unlockAtMs: triggeredAtMs !== null ? triggeredAtMs + unlockTimeMs : null
+        };
+    }
+
+    getCommandOilRigFromRf(event, isInfoChannel = false) {
+        const intl = (key, args = {}) => Client.client.intlGet(this.guildId, key, args);
+        const isSmall = event === 'small';
+        const state = this.getRfOilRigState(event);
+
+        if (state === null) {
+            return intl('oilRigRfNotSetUp', {
+                frequency: isSmall ? Constants.RF_SMALL_OIL_RIG : Constants.RF_LARGE_OIL_RIG,
+                type: intl(isSmall ? 'alarmType_small' : 'alarmType_large')
+            });
+        }
+
+        const now = Date.now();
+        if (state.unlockAtMs !== null && state.unlockAtMs > now) {
+            const secondsLeft = (state.unlockAtMs - now) / 1000;
+            if (isInfoChannel) {
+                return intl('timeUntilUnlocksAt', {
+                    time: Timer.secondsToFullScale(secondsLeft, 's'),
+                    location: state.location
+                });
+            }
+            return intl(isSmall ? 'timeBeforeCrateAtSmallOilRigUnlocks' : 'timeBeforeCrateAtLargeOilRigUnlocks', {
+                time: Timer.secondsToFullScale(secondsLeft),
+                location: state.location
+            });
+        }
+
+        if (state.triggeredAtMs !== null) {
+            const secondsSince = (now - state.triggeredAtMs) / 1000;
+            if (isInfoChannel) {
+                return intl('timeSinceLastEvent', { time: Timer.secondsToFullScale(secondsSince, 's') });
+            }
+            return intl(isSmall ? 'timeSinceHeavyScientistsOnSmall' : 'timeSinceHeavyScientistsOnLarge', {
+                time: Timer.secondsToFullScale(secondsSince)
+            });
+        }
+
+        return isInfoChannel ? intl('noData') : intl(isSmall ? 'noDataOnSmallOilRig' : 'noDataOnLargeOilRig');
+    }
+
     getCommandLarge(isInfoChannel = false) {
         if (!this.mapMarkers) return Client.client.intlGet(this.guildId, 'notActive');
-        if (this.generalSettings.markerEventsEnabled === false) return Client.client.intlGet(this.guildId, 'markerCommandUnsupported');
+        if (this.generalSettings.markerEventsEnabled === false) return this.getCommandOilRigFromRf('large', isInfoChannel);
         const strings = [];
         if (this.mapMarkers.crateLargeOilRigTimer) {
             const time = Timer.getTimeLeftOfTimer(this.mapMarkers.crateLargeOilRigTimer);
@@ -2461,7 +2525,7 @@ class RustPlus extends RustPlusLib {
 
     getCommandSmall(isInfoChannel = false) {
         if (!this.mapMarkers) return Client.client.intlGet(this.guildId, 'notActive');
-        if (this.generalSettings.markerEventsEnabled === false) return Client.client.intlGet(this.guildId, 'markerCommandUnsupported');
+        if (this.generalSettings.markerEventsEnabled === false) return this.getCommandOilRigFromRf('small', isInfoChannel);
         const strings = [];
         if (this.mapMarkers.crateSmallOilRigTimer) {
             const time = Timer.getTimeLeftOfTimer(this.mapMarkers.crateSmallOilRigTimer);

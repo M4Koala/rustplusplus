@@ -888,16 +888,28 @@ module.exports = {
         const guildId = rustplus.guildId;
         const instance = Client.client.getInstance(guildId);
 
-        /* Every event below comes from map markers; without them each field would repeat the
-           same unsupported note, so state it once instead. */
+        /* Without map markers only the oil rigs are still known (via RF Receivers and Smart
+           Alarms); the other events would each repeat the same unsupported note, so it is
+           stated once instead. */
         if (rustplus.generalSettings.markerEventsEnabled === false) {
             return module.exports.getEmbed({
                 title: Client.client.intlGet(guildId, 'eventInfo'),
                 color: Constants.COLOR_DEFAULT,
                 thumbnail: 'attachment://event_info_logo.png',
                 description: `${Client.client.intlGet(guildId, 'inGameEventInfo')}\n\n` +
-                    Client.client.intlGet(guildId, 'markerCommandUnsupported'),
+                    Client.client.intlGet(guildId, 'eventInfoMarkersRemoved'),
                 footer: { text: instance.serverList[rustplus.serverId].title },
+                fields: [
+                    {
+                        name: Client.client.intlGet(guildId, 'smallOilRig'),
+                        value: `\`${rustplus.getCommandSmall(true)}\``,
+                        inline: false
+                    },
+                    {
+                        name: Client.client.intlGet(guildId, 'largeOilRig'),
+                        value: `\`${rustplus.getCommandLarge(true)}\``,
+                        inline: false
+                    }],
                 timestamp: true
             });
         }

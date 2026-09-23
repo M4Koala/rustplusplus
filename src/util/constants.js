@@ -57,6 +57,9 @@ module.exports = {
     /* Default timer times */
     DEFAULT_CARGO_SHIP_EGRESS_TIME_MS: 50 * 60 * 1000, /* 50 min */
     DEFAULT_OIL_RIG_LOCKED_CRATE_UNLOCK_TIME_MS: 15 * 60 * 1000, /* 15 min */
+    /* Frequencies the oil rigs broadcast on when Heavy Scientists are called. */
+    RF_SMALL_OIL_RIG: 4765,
+    RF_LARGE_OIL_RIG: 4768,
 
     /* Reconnection state carry-over */
     MAX_STATE_STASH_AGE_MS: 2 * 60 * 60 * 1000, /* Discard stashed state after 2 hours offline. */
