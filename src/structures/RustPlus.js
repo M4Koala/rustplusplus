@@ -751,28 +751,6 @@ class RustPlus extends RustPlusLib {
         });
     }
 
-    /* '!steamid <name>' — resolve SteamID candidates for a player met in-game whose ID is
-       unknown. Rust's A2S player entries carry the SteamID64, so this lists every player on
-       this server whose name matches; the stable ID can then be put into a tracker. */
-    async getCommandSteamId(command) {
-        const PlayerResolver = require('../util/playerResolver.js');
-        const name = command.replace(/^\S+\s*/, '').trim();
-        if (name === '') {
-            await this.sendInGameMessage(Client.client.intlGet(this.guildId, 'lookupUsage'));
-            return;
-        }
-        const { candidates } = await PlayerResolver.resolveName(
-            Client.client, this.guildId, name, `${this.server}:${this.port}`);
-        let str;
-        if (candidates.length === 0) {
-            str = Client.client.intlGet(this.guildId, 'lookupNotFound', { name: name });
-        }
-        else {
-            str = candidates.slice(0, 5).map(e => `${e.name}: ${e.steamId ?? '?'}`).join('\n');
-        }
-        await this.sendInGameMessage(str);
-    }
-
     getCommandCargo(isInfoChannel = false) {
         if (!this.mapMarkers) return Client.client.intlGet(this.guildId, 'notActive');
         if (this.generalSettings.markerEventsEnabled === false) return Client.client.intlGet(this.guildId, 'markerCommandUnsupported');

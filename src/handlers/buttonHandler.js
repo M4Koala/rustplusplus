@@ -29,6 +29,7 @@ const SmartSwitchGroupHandler = require('./smartSwitchGroupHandler.js');
 const SmartSwitchHandler = require('./smartSwitchHandler.js');
 const DiscordButtons = require('../discordTools/discordButtons.js');
 const DiscordModals = require('../discordTools/discordModals.js');
+const ServerQuery = require('../util/serverQuery.js');
 
 module.exports = async (client, interaction) => {
     const instance = client.getInstance(interaction.guildId);
@@ -592,6 +593,12 @@ module.exports = async (client, interaction) => {
 
         interaction.deferUpdate();
 
+        /* Direct A2S query address (ip:port), used by serverQueryHandler when set; free
+           replacement for the (now paid) Battlemetrics player tracking. The Rust+ app port
+           does not answer A2S — Steam knows the query port; else assume the default. */
+        const queryAddress = await ServerQuery.forPairedServer(server.serverIp, server.appPort) ??
+            `${server.serverIp}:${ServerQuery.DEFAULT_QUERY_PORT}`;
+
         /* Find an available tracker id */
         const trackerId = client.findAvailableTrackerId(guildId);
 
@@ -599,9 +606,7 @@ module.exports = async (client, interaction) => {
             name: 'Tracker',
             serverId: ids.serverId,
             battlemetricsId: server.battlemetricsId,
-            /* Direct A2S query address (ip:port), used by serverQueryHandler when set;
-               free replacement for the (now paid) Battlemetrics player tracking. */
-            queryAddress: `${server.serverIp}:${server.appPort}`,
+            queryAddress: queryAddress,
             title: server.title,
             img: server.img,
             clanTag: '',
@@ -1148,7 +1153,7 @@ module.exports = async (client, interaction) => {
         const pending = client.resolverPending ? client.resolverPending[ids.u] : null;
         if (!pending || Date.now() - pending.ts > 5 * 60 * 1000 || !pending.candidates[ids.i]) {
             await interaction.reply({
-                embeds: [DiscordEmbeds.getActionInfoEmbed(1, client.intlGet(guildId, 'resolverExpired'))],
+                embeds: DiscordEmbeds.getActionInfoEmbed(1, client.intlGet(guildId, 'resolverExpired')).embeds,
                 flags: 64
             });
             return;
@@ -1158,7 +1163,7 @@ module.exports = async (client, interaction) => {
         const trackerEntries = Object.entries(instance.trackers).filter(([, t]) => t.queryAddress);
         if (trackerEntries.length === 0) {
             await interaction.reply({
-                embeds: [DiscordEmbeds.getActionInfoEmbed(1, client.intlGet(guildId, 'resolverNoTrackers'))],
+                embeds: DiscordEmbeds.getActionInfoEmbed(1, client.intlGet(guildId, 'resolverNoTrackers')).embeds,
                 flags: 64
             });
             return;
@@ -1177,7 +1182,7 @@ module.exports = async (client, interaction) => {
         await interaction.update({
             embeds: [DiscordEmbeds.getEmbed({
                 color: Constants.COLOR_SETTINGS,
-                description: `**${candidate.name}** — ${candidate.steamId}\n\n` +
+                description: `**${candidate.name}** — ${candidate.server}\n\n` +
                     client.intlGet(guildId, 'resolverPickTracker')
             })],
             components: [new Discord.ActionRowBuilder().addComponents(select)]

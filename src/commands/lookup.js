@@ -60,7 +60,7 @@ module.exports = {
         }
 
         const lines = candidates.map(e =>
-            `**${e.name}** — ${e.steamId ?? client.intlGet(guildId, 'lookupNoSteamId')} (${e.server}, <${Math.round(e.time / 60)}m>)`);
+            `**${e.name}** — ${e.server}, ${Math.round(e.time / 60)} min`);
 
         await client.interactionEditReply(interaction, {
             embeds: [DiscordEmbeds.getEmbed({

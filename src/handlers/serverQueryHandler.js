@@ -21,18 +21,15 @@
 const Fs = require('fs');
 const Path = require('path');
 
-const { GameDig } = require('gamedig');
-
-const A2S = require('../util/a2s.js');
 const DiscordMessages = require('../discordTools/discordMessages.js');
+const ServerQuery = require('../util/serverQuery.js');
 const Timer = require('../util/timer');
 
 /* Free replacement for the (paid) Battlemetrics player tracking: query the Rust server
    directly over the Steam server browser protocol (A2S) and watch for specific players
    being on the server. Works for any player regardless of their profile privacy.
-   Players are matched by SteamID (Rust embeds them in its A2S player entries, parsed by
-   util/a2s.js), which survives in-game renames — names are repaired from the live list.
-   Name matching is only the fallback when a server hides the SteamIDs. */
+   Rust's A2S player list has no SteamIDs, so players are matched by name (case-insensitive);
+   entries added by SteamID carry the Steam profile name, which is the in-game name. */
 
 const POLL_TIMEOUT_MS = 15000;
 const HISTORY_RETENTION_MS = 30 * 24 * 60 * 60 * 1000; /* Keep 30 days of sessions. */
@@ -77,6 +74,21 @@ module.exports = {
         const tracker = instance.trackers[trackerId];
         if (!tracker || !tracker.queryAddress) return;
 
+        /* Trackers created before the query-port lookup got the Rust+ app port, which never
+           answers A2S; swap in the real query address once Steam can tell it. */
+        const server = instance.serverList[tracker.serverId];
+        if (server && tracker.queryAddress === `${server.serverIp}:${server.appPort}`) {
+            const address = await ServerQuery.forPairedServer(server.serverIp, server.appPort);
+            const fresh = client.getInstance(guildId);
+            if (address && fresh.trackers.hasOwnProperty(trackerId)) {
+                fresh.trackers[trackerId].queryAddress = address;
+                client.setInstance(guildId, fresh);
+                delete client.serverQueryState[trackerId];
+                client.log(client.intlGet(null, 'infoCap'),
+                    `Tracker ${trackerId}: query address changed from app port to ${address}`);
+            }
+        }
+
         const [host, port] = module.exports.parseAddress(tracker.queryAddress);
         if (!host) return;
 
@@ -90,28 +102,17 @@ module.exports = {
             playerCount: 0
         };
 
-        /* Rust appends the SteamID64 of every player to the A2S player entries; parsing that
-           ourselves (util/a2s.js) is what makes presence tracking immune to name changes.
-           gamedig stays as a name-only fallback for servers that don't expose the SteamIDs
-           (or confuse our parser). */
         let players;
         try {
-            players = (await A2S.queryPlayers(host, port)).map(e =>
-                ({ name: e.name, lower: (e.name ?? '').toLowerCase(), steamId: e.steamId }));
+            players = (await ServerQuery.queryPlayers(host, port, POLL_TIMEOUT_MS)).map(e =>
+                ({ name: e.name, lower: e.name.toLowerCase() }));
         }
         catch (e) {
-            try {
-                const data = await GameDig.query({ type: 'rust', host, port, timeout: POLL_TIMEOUT_MS });
-                players = (data.players ?? []).map(e =>
-                    ({ name: e.name, lower: (e.name ?? '').toLowerCase(), steamId: null }));
-            }
-            catch (e2) {
-                /* Server unreachable (down, hidden from browser). Do not synthesize
-                   disconnects — keep last known state and surface the error on the embed. */
-                state.lastError = e2.message;
-                await DiscordMessages.sendTrackerMessage(guildId, trackerId);
-                return;
-            }
+            /* Server unreachable (down, hidden from browser, wrong query port). Do not
+               synthesize disconnects — keep last known state and surface the error on the embed. */
+            state.lastError = e.message;
+            await DiscordMessages.sendTrackerMessage(guildId, trackerId);
+            return;
         }
 
         state.lastError = null;
@@ -132,15 +133,10 @@ module.exports = {
             if (!state.online.hasOwnProperty(key)) state.online[key] = null;
             if (!state.absent.hasOwnProperty(key)) state.absent[key] = 0;
 
-            /* SteamID match wins (immune to renames); name match is the fallback for
-               entries without a SteamID or servers that do not expose player SteamIDs. */
-            const watchedSteamId = player.steamId !== null ? `${player.steamId}` : null;
-            let matched;
-            if (watchedSteamId) matched = players.find(e => e.steamId === watchedSteamId);
-            if (!matched) matched = players.find(e => e.lower === lower);
+            const matched = players.find(e => e.lower === lower);
             const onServer = matched !== undefined;
 
-            /* Player renamed in-game: repair the tracked name from the live server list. */
+            /* Same name in different casing: take the spelling from the live server list. */
             if (matched && matched.name !== player.name) {
                 player.name = matched.name;
                 renamed = true;

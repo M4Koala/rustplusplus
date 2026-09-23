@@ -20,29 +20,29 @@ If no token is obtained, tracker functionality will be disabled.
 Without a Battlemetrics token, trackers still work — they query the Rust server directly over
 the Steam server browser protocol (A2S), for free:
 
-- Every server you pair gets a tracker-capable **query address** (`ip:port`), editable in the
-  tracker edit modal if your server's query port differs (default port 28015).
-- Add watched players by **SteamID64** (their profile can be private — presence comes from the
-  server's public player list, not the profile) or by name.
+- Every server you pair gets a tracker-capable **query address** (`ip:port`). The Rust+ app
+  port does not answer queries, so the query port is looked up via Steam (keyless
+  `GetServersAtAddress`); if Steam cannot tell, the default 28017 is used. Editable in the
+  tracker edit modal.
+- Add watched players by **SteamID64** (the bot reads their Steam profile name, which works
+  for private profiles too) or by name via **Find player by name**.
 - The tracker embed shows **on server / not on server**, connected-for and **hours on server
   over the last 7 days**; connect/disconnect are announced in the trackers channel.
-- Limitations vs Battlemetrics: matching in the player list is by name (name changes need a
-  manual rename of the watched entry), and servers hidden from the server browser cannot be
-  queried.
+- Limitations vs Battlemetrics: Rust's A2S player list contains **only names** (plus score
+  and time on server), no SteamIDs. Matching is therefore by name, also for entries added
+  by SteamID64 (their Steam name is used). Name changes need a manual rename of the
+  watched entry, and servers hidden from the server browser cannot be queried.
 
-## Name -> SteamID resolver
+## Find player by name
 
-In-game names are not unique and can change. The bot offers three entry points to turn
-a name you just heard into the stable SteamID64 you put in a tracker:
+When you met someone and only know their in-game name:
 
-- **#trackers channel**: press the **Resolve player (name → SteamID)** button (posted once
-  in the channel; it comes back if deleted), enter the name, and the result lists every
-  matching player with their SteamID — press **Add** on the right one and pick the tracker
-  from the dropdown; the player is added immediately.
-- **In-game chat**: `!steamid <name>` lists the candidates for the server you are on.
-- **Discord**: `/lookup name:<name>` lists candidates across all paired servers and
-  tracker addresses (then add manually via the tracker's Add player button).
+- **#trackers channel**: press **Find player by name** (posted once in the channel; it comes
+  back if deleted), enter (part of) the name, and every matching player online right now on
+  your paired and tracker servers is listed with the server and time on it. Press the
+  number button on the right one and pick the tracker. The player is added by name.
+- **Discord**: `/lookup name:<name>` lists the same matches.
 
-All three query the server's live A2S player list, which carries the SteamID64 for each
-entry. Candidates only include players currently on a queried server; servers that hide
-SteamIDs are reported as such.
+A SteamID cannot be looked up this way: Rust servers do not publish them. To track by
+SteamID64, get it from the player's Steam profile link (`steamcommunity.com/profiles/<id>`).
+Teammates' SteamIDs are available in-game via `!steamid <name>`.

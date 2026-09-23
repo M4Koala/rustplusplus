@@ -157,7 +157,7 @@ module.exports = async (client, interaction) => {
         const pending = client.resolverPending ? client.resolverPending[ids.u] : null;
         if (!pending || Date.now() - pending.ts > 5 * 60 * 1000 || !pending.candidates[ids.i]) {
             await interaction.update({
-                embeds: [DiscordEmbeds.getActionInfoEmbed(1, client.intlGet(guildId, 'resolverExpired'))],
+                embeds: DiscordEmbeds.getActionInfoEmbed(1, client.intlGet(guildId, 'resolverExpired')).embeds,
                 components: []
             });
             return;
@@ -166,18 +166,20 @@ module.exports = async (client, interaction) => {
         const trackerId = interaction.values[0];
         const tracker = instance.trackers[trackerId];
 
-        if (!tracker || !tracker.queryAddress || candidate.steamId === null) {
+        if (!tracker || !tracker.queryAddress) {
             await interaction.update({
-                embeds: [DiscordEmbeds.getActionInfoEmbed(1, client.intlGet(guildId, 'resolverExpired'))],
+                embeds: DiscordEmbeds.getActionInfoEmbed(1, client.intlGet(guildId, 'resolverExpired')).embeds,
                 components: []
             });
             return;
         }
 
-        if (tracker.players.some(p => p.steamId === candidate.steamId)) {
+        /* Rust's server query has no SteamIDs, so resolver entries are tracked by name. */
+        const lower = candidate.name.toLowerCase();
+        if (tracker.players.some(p => (p.name ?? '').toLowerCase() === lower)) {
             await interaction.update({
-                embeds: [DiscordEmbeds.getActionInfoEmbed(1, client.intlGet(guildId, 'resolverAlreadyTracked',
-                    { name: candidate.name, tracker: tracker.name }))],
+                embeds: DiscordEmbeds.getActionInfoEmbed(1, client.intlGet(guildId, 'resolverAlreadyTracked',
+                    { name: candidate.name, tracker: tracker.name })).embeds,
                 components: []
             });
             return;
@@ -185,7 +187,7 @@ module.exports = async (client, interaction) => {
 
         tracker.players.push({
             name: candidate.name,
-            steamId: candidate.steamId,
+            steamId: null,
             playerId: null
         });
         client.setInstance(guildId, instance);
@@ -193,14 +195,14 @@ module.exports = async (client, interaction) => {
 
         client.log(client.intlGet(null, 'infoCap'), client.intlGet(null, 'selectMenuValueChange', {
             id: `${verifyId}`,
-            value: `resolver add ${candidate.steamId} -> ${trackerId}`
+            value: `resolver add ${candidate.name} -> ${trackerId}`
         }));
 
         await DiscordMessages.sendTrackerMessage(guildId, trackerId);
 
         await interaction.update({
-            embeds: [DiscordEmbeds.getActionInfoEmbed(0, client.intlGet(guildId, 'resolverAdded',
-                { name: candidate.name, steamId: candidate.steamId, tracker: tracker.name }))],
+            embeds: DiscordEmbeds.getActionInfoEmbed(0, client.intlGet(guildId, 'resolverAdded',
+                { name: candidate.name, tracker: tracker.name })).embeds,
             components: []
         });
     }

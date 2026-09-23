@@ -18,18 +18,18 @@
 
 */
 
-const A2S = require('./a2s.js');
+const ServerQuery = require('./serverQuery.js');
 
-/* Name -> SteamID candidates. In-game names are not unique and mutable, so when someone
-   is met in-game and only their name is known, this queries the A2S player lists (which
-   carry the SteamID64 per entry) of all known servers / tracker addresses and returns
-   every player whose name matches, so the right SteamID can be picked for the tracker. */
+/* Finds players by (part of) their in-game name on the paired servers and tracker servers.
+   Rust's server query only lists names (no SteamIDs), so this cannot tell who someone is —
+   it shows who with that name is online right now, spelled exactly as the server lists it,
+   so they can be put into a tracker by name. */
 
-const QUERY_TIMEOUT_MS = 6000;
+const QUERY_TIMEOUT_MS = 4000;
 const MAX_CANDIDATES = 15;
 
 module.exports = {
-    resolveName: async function (client, guildId, name, onlyAddress = null) {
+    resolveName: async function (client, guildId, name) {
         const instance = client.getInstance(guildId);
         const query = `${name}`.trim().toLowerCase();
 
@@ -42,45 +42,42 @@ module.exports = {
             seen.add(key);
             addresses.push({ ip, port: parseInt(port), title });
         };
+        const addPairedServer = async (server) => {
+            const address = await ServerQuery.forPairedServer(server.serverIp, server.appPort);
+            const [ip, port] = (address ?? `${server.serverIp}:${ServerQuery.DEFAULT_QUERY_PORT}`).split(':');
+            addAddress(ip, port, server.title);
+        };
 
-        if (onlyAddress) {
-            const parts = `${onlyAddress}`.split(':');
-            addAddress(parts[0], parts[1] || 28015, instance.activeServer !== null
-                ? instance.serverList[instance.activeServer]?.title : null);
+        /* Tracker addresses first: they are set/confirmed by the user, so their title wins. */
+        for (const tracker of Object.values(instance.trackers)) {
+            if (!tracker.queryAddress) continue;
+            const parts = `${tracker.queryAddress}`.split(':');
+            addAddress(parts[0], parts[1] || ServerQuery.DEFAULT_QUERY_PORT, tracker.title);
         }
-        else {
-            for (const server of Object.values(instance.serverList)) {
-                addAddress(server.serverIp, server.appPort, server.title);
-            }
-            for (const tracker of Object.values(instance.trackers)) {
-                if (!tracker.queryAddress) continue;
-                const parts = `${tracker.queryAddress}`.split(':');
-                addAddress(parts[0], parts[1] || 28015, tracker.title);
-            }
-        }
+        await Promise.all(Object.values(instance.serverList).map(addPairedServer));
 
         const candidates = [];
         const errors = [];
 
-        for (const address of addresses) {
-            try {
-                const players = await A2S.queryPlayers(address.ip, address.port, QUERY_TIMEOUT_MS);
-                for (const player of players) {
-                    const lower = (player.name ?? '').toLowerCase();
-                    if (lower === query || lower.includes(query) || query.includes(lower)) {
-                        candidates.push({
-                            server: address.title ?? `${address.ip}:${address.port}`,
-                            name: player.name,
-                            steamId: player.steamId,
-                            time: Math.round(player.time ?? 0)
-                        });
-                    }
-                }
+        const results = await Promise.allSettled(addresses.map(address =>
+            ServerQuery.queryPlayers(address.ip, address.port, QUERY_TIMEOUT_MS)));
+
+        results.forEach((result, i) => {
+            const address = addresses[i];
+            if (result.status === 'rejected') {
+                errors.push(`${address.ip}:${address.port} (${result.reason?.message ?? result.reason})`);
+                return;
             }
-            catch (e) {
-                errors.push(`${address.ip}:${address.port} (${e.message})`);
+            for (const player of result.value) {
+                const lower = player.name.toLowerCase();
+                if (lower === '' || !lower.includes(query)) continue;
+                candidates.push({
+                    server: address.title ?? `${address.ip}:${address.port}`,
+                    name: player.name,
+                    time: Math.round(player.time ?? 0)
+                });
             }
-        }
+        });
 
         /* Exact name matches first, then partial ones; cap the list. */
         candidates.sort((a, b) => {

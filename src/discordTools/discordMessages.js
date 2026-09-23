@@ -78,29 +78,35 @@ module.exports = {
         return current;
     },
 
-    /* Persistent entry point for the name -> SteamID resolver in #trackers. Posted once
-       and kept; reposted if someone deletes it. */
+    /* Persistent entry point for the find-player-by-name resolver in #trackers. Posted once
+       and kept (its text refreshed on startup); reposted if someone deletes it. */
     sendTrackerResolverMessage: async function (guildId) {
         const instance = Client.client.getInstance(guildId);
         const channel = DiscordTools.getTextChannelById(guildId, instance.channelId.trackers);
         if (!channel) return;
 
-        if (instance.resolverMessageId) {
-            try {
-                await channel.messages.fetch(instance.resolverMessageId);
-                return;
-            }
-            catch (e) { /* deleted, repost below */ }
-        }
-
-        const message = await module.exports.sendMessage(guildId, {
+        const content = {
             embeds: [DiscordEmbeds.getEmbed({
                 color: Constants.COLOR_SETTINGS,
                 title: Client.client.intlGet(guildId, 'trackerResolverTitle'),
                 description: Client.client.intlGet(guildId, 'trackerResolverDesc')
             })],
             components: DiscordButtons.getTrackerResolverButton(guildId)
-        }, null, instance.channelId.trackers);
+        };
+
+        if (instance.resolverMessageId) {
+            let existing = null;
+            try {
+                existing = await channel.messages.fetch(instance.resolverMessageId);
+            }
+            catch (e) { /* deleted, repost below */ }
+            if (existing) {
+                await Client.client.messageEdit(existing, content);
+                return;
+            }
+        }
+
+        const message = await module.exports.sendMessage(guildId, content, null, instance.channelId.trackers);
 
         if (message) {
             const fresh = Client.client.getInstance(guildId);

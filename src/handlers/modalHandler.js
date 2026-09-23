@@ -22,6 +22,7 @@ const Discord = require('discord.js');
 
 const Battlemetrics = require('../structures/Battlemetrics');
 const Constants = require('../util/constants.js');
+const DiscordEmbeds = require('../discordTools/discordEmbeds.js');
 const DiscordMessages = require('../discordTools/discordMessages.js');
 const Keywords = require('../util/keywords.js');
 const Scrape = require('../util/scrape.js');
@@ -336,7 +337,6 @@ module.exports = async (client, interaction) => {
     }
     else if (interaction.customId === 'TrackerResolver') {
         const PlayerResolver = require('../util/playerResolver.js');
-        const DiscordEmbeds = require('../discordTools/discordEmbeds.js');
         const DiscordButtons = require('../discordTools/discordButtons.js');
 
         const name = (interaction.fields.getTextInputValue('TrackerResolveName') ?? '').trim();
@@ -345,14 +345,17 @@ module.exports = async (client, interaction) => {
             return;
         }
 
-        const { candidates } = await PlayerResolver.resolveName(client, interaction.guildId, name);
+        /* Querying the servers takes seconds; Discord drops a modal not answered within 3 s. */
+        await interaction.deferReply({ ephemeral: true });
+
+        const { candidates, errors } = await PlayerResolver.resolveName(client, interaction.guildId, name);
 
         if (candidates.length === 0) {
-            await interaction.reply({
-                embeds: [DiscordEmbeds.getActionInfoEmbed(1,
-                    client.intlGet(interaction.guildId, 'lookupNotFound', { name: name }))],
-                flags: 64
-            });
+            let str = client.intlGet(interaction.guildId, 'lookupNotFound', { name: name });
+            if (errors.length !== 0) {
+                str += `\n${client.intlGet(interaction.guildId, 'lookupErrors')}: ${errors.join(', ')}`;
+            }
+            await client.interactionEditReply(interaction, DiscordEmbeds.getActionInfoEmbed(1, str));
             return;
         }
 
@@ -361,13 +364,12 @@ module.exports = async (client, interaction) => {
         client.resolverPending[interaction.user.id] = { ts: Date.now(), candidates: shown };
 
         const lines = shown.map((e, i) =>
-            `**${i + 1}. ${e.name}** — ${e.steamId ?? client.intlGet(interaction.guildId, 'lookupNoSteamId')} (${e.server})`);
+            `**${i + 1}. ${e.name}** — ${e.server}, ${Math.round(e.time / 60)} min`);
 
         const buttons = shown.map((e, i) => DiscordButtons.getButton({
             label: `#${i + 1} ${`${e.name}`.slice(0, 40)}`,
             style: Discord.ButtonStyle.Primary,
-            customId: `TrackerResolveAdd${JSON.stringify({ u: interaction.user.id, i: i })}`,
-            disabled: e.steamId === null
+            customId: `TrackerResolveAdd${JSON.stringify({ u: interaction.user.id, i: i })}`
         }));
 
         const rows = [];
@@ -375,32 +377,43 @@ module.exports = async (client, interaction) => {
             rows.push(new Discord.ActionRowBuilder().addComponents(buttons.slice(i, i + 5)));
         }
 
-        await interaction.reply({
+        await client.interactionEditReply(interaction, {
             embeds: [DiscordEmbeds.getEmbed({
                 color: Constants.COLOR_SETTINGS,
                 title: client.intlGet(interaction.guildId, 'lookupTitle', { name: name }),
                 description: `${lines.join('\n')}\n\n${client.intlGet(interaction.guildId, 'lookupHowTo')}`
             })],
-            components: rows,
-            flags: 64
+            components: rows
         });
     }
     else if (interaction.customId.startsWith('TrackerAddPlayer')) {
         const ids = JSON.parse(interaction.customId.replace('TrackerAddPlayer', ''));
         const tracker = instance.trackers[ids.trackerId];
-        const id = interaction.fields.getTextInputValue('TrackerAddPlayerId');
+        const id = interaction.fields.getTextInputValue('TrackerAddPlayerId').trim();
 
         if (!tracker) {
             interaction.deferUpdate();
             return;
         }
 
-        const isSteamId64 = id.length === Constants.STEAMID64_LENGTH ? true : false;
+        /* The Steam profile lookup below can take longer than Discord's 3 s modal window. */
+        await interaction.deferUpdate();
+
+        const isSteamId64 = /^\d+$/.test(id) && id.length === Constants.STEAMID64_LENGTH;
         const bmInstance = client.battlemetricsInstances[tracker.battlemetricsId];
+
+        /* Anything that is not a SteamID64 is a Battlemetrics player ID, which needs BM. */
+        if (!isSteamId64 && !bmInstance) {
+            await interaction.followUp({
+                embeds: DiscordEmbeds.getActionInfoEmbed(1,
+                    client.intlGet(guildId, 'trackerAddPlayerNotSteamId', { id: id })).embeds,
+                ephemeral: true
+            });
+            return;
+        }
 
         if ((isSteamId64 && tracker.players.some(e => e.steamId === id)) ||
             (!isSteamId64 && tracker.players.some(e => e.playerId === id && e.steamId === null))) {
-            interaction.deferUpdate();
             return;
         }
 
@@ -440,6 +453,16 @@ module.exports = async (client, interaction) => {
         }));
 
         await DiscordMessages.sendTrackerMessage(interaction.guildId, ids.trackerId);
+
+        /* Server-query trackers match by name, so a SteamID without a readable profile name
+           cannot be seen until the name is known. */
+        if (isSteamId64 && !name && tracker.queryAddress) {
+            await interaction.followUp({
+                embeds: DiscordEmbeds.getActionInfoEmbed(1,
+                    client.intlGet(guildId, 'trackerAddPlayerNoName', { steamId: id })).embeds,
+                ephemeral: true
+            });
+        }
     }
     else if (interaction.customId.startsWith('TrackerRemovePlayer')) {
         const ids = JSON.parse(interaction.customId.replace('TrackerRemovePlayer', ''));
@@ -473,5 +496,6 @@ module.exports = async (client, interaction) => {
         id: `${verifyId}`
     }));
 
-    interaction.deferUpdate();
+    /* Branches that do slow work acknowledge the modal themselves up front. */
+    if (!interaction.deferred && !interaction.replied) interaction.deferUpdate();
 }
