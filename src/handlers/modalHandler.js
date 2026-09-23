@@ -26,6 +26,7 @@ const DiscordEmbeds = require('../discordTools/discordEmbeds.js');
 const DiscordMessages = require('../discordTools/discordMessages.js');
 const Keywords = require('../util/keywords.js');
 const Scrape = require('../util/scrape.js');
+const ServerQuery = require('../util/serverQuery.js');
 
 module.exports = async (client, interaction) => {
     const instance = client.getInstance(interaction.guildId);
@@ -294,11 +295,12 @@ module.exports = async (client, interaction) => {
         if (trackerQueryAddress !== '') {
             if (/^[A-Za-z0-9_.:-]+$/.test(trackerQueryAddress)) {
                 const normalized = trackerQueryAddress.includes(':') ?
-                    trackerQueryAddress : `${trackerQueryAddress}:28015`;
+                    trackerQueryAddress : `${trackerQueryAddress}:${ServerQuery.DEFAULT_QUERY_PORT}`;
                 if (normalized !== (tracker.queryAddress ?? null)) {
                     tracker.queryAddress = normalized;
-                    /* Reset live state so the next poll re-baselines against the new server. */
-                    if (client.serverQueryState) delete client.serverQueryState[ids.trackerId];
+                    /* Server line re-baselines against the new address; player status is Steam's. */
+                    const state = client.serverQueryState ? client.serverQueryState[ids.trackerId] : null;
+                    if (state) Object.assign(state, { lastOk: null, lastError: null, playerCount: 0 });
                 }
             }
         }
@@ -334,57 +336,6 @@ module.exports = async (client, interaction) => {
         }));
 
         await DiscordMessages.sendTrackerMessage(interaction.guildId, ids.trackerId);
-    }
-    else if (interaction.customId === 'TrackerResolver') {
-        const PlayerResolver = require('../util/playerResolver.js');
-        const DiscordButtons = require('../discordTools/discordButtons.js');
-
-        const name = (interaction.fields.getTextInputValue('TrackerResolveName') ?? '').trim();
-        if (name === '') {
-            interaction.deferUpdate();
-            return;
-        }
-
-        /* Querying the servers takes seconds; Discord drops a modal not answered within 3 s. */
-        await interaction.deferReply({ ephemeral: true });
-
-        const { candidates, errors } = await PlayerResolver.resolveName(client, interaction.guildId, name);
-
-        if (candidates.length === 0) {
-            let str = client.intlGet(interaction.guildId, 'lookupNotFound', { name: name });
-            if (errors.length !== 0) {
-                str += `\n${client.intlGet(interaction.guildId, 'lookupErrors')}: ${errors.join(', ')}`;
-            }
-            await client.interactionEditReply(interaction, DiscordEmbeds.getActionInfoEmbed(1, str));
-            return;
-        }
-
-        const shown = candidates.slice(0, 10);
-        if (!client.resolverPending) client.resolverPending = {};
-        client.resolverPending[interaction.user.id] = { ts: Date.now(), candidates: shown };
-
-        const lines = shown.map((e, i) =>
-            `**${i + 1}. ${e.name}** — ${e.server}, ${Math.round(e.time / 60)} min`);
-
-        const buttons = shown.map((e, i) => DiscordButtons.getButton({
-            label: `#${i + 1} ${`${e.name}`.slice(0, 40)}`,
-            style: Discord.ButtonStyle.Primary,
-            customId: `TrackerResolveAdd${JSON.stringify({ u: interaction.user.id, i: i })}`
-        }));
-
-        const rows = [];
-        for (let i = 0; i < buttons.length; i += 5) {
-            rows.push(new Discord.ActionRowBuilder().addComponents(buttons.slice(i, i + 5)));
-        }
-
-        await client.interactionEditReply(interaction, {
-            embeds: [DiscordEmbeds.getEmbed({
-                color: Constants.COLOR_SETTINGS,
-                title: client.intlGet(interaction.guildId, 'lookupTitle', { name: name }),
-                description: `${lines.join('\n')}\n\n${client.intlGet(interaction.guildId, 'lookupHowTo')}`
-            })],
-            components: rows
-        });
     }
     else if (interaction.customId.startsWith('TrackerAddPlayer')) {
         const ids = JSON.parse(interaction.customId.replace('TrackerAddPlayer', ''));

@@ -78,41 +78,24 @@ module.exports = {
         return current;
     },
 
-    /* Persistent entry point for the find-player-by-name resolver in #trackers. Posted once
-       and kept (its text refreshed on startup); reposted if someone deletes it. */
-    sendTrackerResolverMessage: async function (guildId) {
+    /* The find-player-by-name resolver was removed (Rust's server query only lists random
+       pseudonyms); delete the message it had posted in #trackers so no dead button stays. */
+    removeTrackerResolverMessage: async function (guildId) {
         const instance = Client.client.getInstance(guildId);
+        if (!instance.hasOwnProperty('resolverMessageId')) return;
+
         const channel = DiscordTools.getTextChannelById(guildId, instance.channelId.trackers);
-        if (!channel) return;
-
-        const content = {
-            embeds: [DiscordEmbeds.getEmbed({
-                color: Constants.COLOR_SETTINGS,
-                title: Client.client.intlGet(guildId, 'trackerResolverTitle'),
-                description: Client.client.intlGet(guildId, 'trackerResolverDesc')
-            })],
-            components: DiscordButtons.getTrackerResolverButton(guildId)
-        };
-
-        if (instance.resolverMessageId) {
-            let existing = null;
+        if (channel && instance.resolverMessageId) {
             try {
-                existing = await channel.messages.fetch(instance.resolverMessageId);
+                const message = await channel.messages.fetch(instance.resolverMessageId);
+                await message.delete();
             }
-            catch (e) { /* deleted, repost below */ }
-            if (existing) {
-                await Client.client.messageEdit(existing, content);
-                return;
-            }
+            catch (e) { /* already gone */ }
         }
 
-        const message = await module.exports.sendMessage(guildId, content, null, instance.channelId.trackers);
-
-        if (message) {
-            const fresh = Client.client.getInstance(guildId);
-            fresh.resolverMessageId = message.id;
-            Client.client.setInstance(guildId, fresh);
-        }
+        const fresh = Client.client.getInstance(guildId);
+        delete fresh.resolverMessageId;
+        Client.client.setInstance(guildId, fresh);
     },
 
     sendTrackerMessage: async function (guildId, trackerId, interaction = null) {

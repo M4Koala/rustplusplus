@@ -28,7 +28,6 @@ Slash Command | Description
 [**/role**](commands.md#role) | Set/Clear a specific role that will be able to see the rustplusplus category content.
 [**/storagemonitor**](commands.md#storagemonitors) | Operations on Storage Monitors.
 [**/switch**](commands.md#switch) | Operations on Smart Switches.
-[**/lookup**](commands.md#lookup) | Find who is online with a given in-game name on your servers.
 [**/upkeep**](commands.md#upkeep) | Get the upkeep cost of an item.
 [**/uptime**](commands.md#uptime) | Display uptime of the bot and server.
 [**/voice**](commands.md#voice) | Operations on Voice Feature.
@@ -308,19 +307,6 @@ Subcommand | Options | Description | Required
 
 ![Discord Slash Command switch Image](images/slash_commands/switch.png)
 
-
-## **/lookup**
-
-> **Find who is online with a given in-game name on your servers.**
-
-| Option | Description |
-| --- | --- |
-| name | Exact or partial player name (as shown in game). |
-
-Queries the live player lists of all paired servers and tracker addresses and lists every
-matching player with the server and time on it. Rust servers publish names only, no
-SteamIDs. To add someone to a tracker by name, use the **Find player by name** button in
-**#trackers**.
 
 ## **/upkeep**
 

@@ -124,12 +124,14 @@ module.exports = {
         });
     },
 
-    /* Tracker fed by the direct server query (serverQueryHandler) instead of Battlemetrics. */
+    /* Free tracker (serverQueryHandler): server line from the direct server query, player
+       status from Steam profiles, since Rust's server query only lists pseudonyms. */
     getTrackerServerQueryEmbed: function (guildId, trackerId) {
         const instance = Client.client.getInstance(guildId);
         const tracker = instance.trackers[trackerId];
         const ServerQueryHandler = require('../handlers/serverQueryHandler.js');
         const state = Client.client.serverQueryState ? Client.client.serverQueryState[trackerId] : undefined;
+        const statuses = Client.client.steamStatus ?? {};
 
         let description = `__**${Client.client.intlGet(guildId, 'sqQueryAddress')}:**__ \`${tracker.queryAddress}\`\n`;
 
@@ -143,13 +145,19 @@ module.exports = {
         else {
             description += `__**${Client.client.intlGet(guildId, 'serverStatus')}:**__ ${Constants.NOT_FOUND_EMOJI}\n`;
         }
+        description += `\n${Client.client.intlGet(guildId, 'trackerSteamStatusNote', {
+            playing: Constants.ONLINE_EMOJI,
+            private: Constants.PRIVATE_EMOJI,
+            noSteamId: Constants.NOT_FOUND_EMOJI
+        })}\n`;
 
         const nameMaxLength = Constants.EMBED_FIELD_MAX_WIDTH_LENGTH_3;
         let playerName = '', playerStats = '', playerStatus = '';
         for (const player of tracker.players) {
-            const key = player.steamId !== null ? `${player.steamId}` : (player.name ?? '').toLowerCase();
-            const online = state && state.online ? state.online[key] : null;
-            const lastSession = Client.client.serverQueryHistory &&
+            const key = player.steamId !== null ? `${player.steamId}` : null;
+            const online = key && state && state.online ? state.online[key] : null;
+            const status = key ? statuses[key] : undefined;
+            const lastSession = key && Client.client.serverQueryHistory &&
                 Client.client.serverQueryHistory[guildId] &&
                 Client.client.serverQueryHistory[guildId][key] ?
                 Client.client.serverQueryHistory[guildId][key].sessions.filter(e => e.out !== null).pop() : null;
@@ -159,24 +167,34 @@ module.exports = {
             name += '\n';
 
             let stats = '';
-            const hours = ServerQueryHandler.hoursLastDays(Client.client, guildId, key, 7);
+            const hours = key && status?.state !== 'hidden' ?
+                ServerQueryHandler.hoursLastDays(Client.client, guildId, key, 7) : null;
             stats += hours !== null ? Client.client.intlGet(guildId, 'sqHoursLast7Days', { hours: hours }) : '';
             stats += '\n';
 
-            let status = '';
-            if (online) {
+            let statusLine = '';
+            if (!key) {
+                statusLine += `${Constants.NOT_FOUND_EMOJI} ${Client.client.intlGet(guildId, 'trackerNoSteamId')}\n`;
+            }
+            else if (online) {
                 const since = Math.floor((Date.now() - online) / 1000);
-                status += `${Constants.ONLINE_EMOJI} [${Timer.secondsToFullScale(since)}]\n`;
+                statusLine += `${Constants.ONLINE_EMOJI} [${Timer.secondsToFullScale(since)}]\n`;
+            }
+            else if (!status) {
+                statusLine += `${Constants.PENDING_EMOJI}\n`;
+            }
+            else if (status.state === 'hidden') {
+                statusLine += `${Constants.PRIVATE_EMOJI} ${Client.client.intlGet(guildId, 'trackerStatusPrivate')}\n`;
             }
             else {
                 const lastOut = lastSession ? lastSession.out : null;
-                status += `${Constants.OFFLINE_EMOJI} `;
-                status += lastOut !== null ? `<t:${Math.floor(lastOut / 1000)}:R>\n` : '\n';
+                statusLine += `${Constants.OFFLINE_EMOJI} `;
+                statusLine += lastOut !== null ? `<t:${Math.floor(lastOut / 1000)}:R>\n` : '\n';
             }
 
             playerName += name;
             playerStats += stats;
-            playerStatus += status;
+            playerStatus += statusLine;
         }
 
         return module.exports.getEmbed({

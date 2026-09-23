@@ -23,53 +23,98 @@ const Path = require('path');
 
 const DiscordMessages = require('../discordTools/discordMessages.js');
 const ServerQuery = require('../util/serverQuery.js');
+const SteamStatus = require('../util/steamStatus.js');
 const Timer = require('../util/timer');
 
-/* Free replacement for the (paid) Battlemetrics player tracking: query the Rust server
-   directly over the Steam server browser protocol (A2S) and watch for specific players
-   being on the server. Works for any player regardless of their profile privacy.
-   Rust's A2S player list has no SteamIDs, so players are matched by name (case-insensitive);
-   entries added by SteamID carry the Steam profile name, which is the in-game name. */
+/* Free replacement for the (paid) Battlemetrics player tracking.
+
+   Rust's server query (A2S) cannot identify players: its player list only carries a random
+   pseudonym per connection. It is still used for the server line of the tracker (online,
+   player count). Whether a tracked player is playing comes from their Steam profile
+   (util/steamStatus.js): "playing Rust" on any server, only for public profiles. */
 
 const POLL_TIMEOUT_MS = 15000;
 const HISTORY_RETENTION_MS = 30 * 24 * 60 * 60 * 1000; /* Keep 30 days of sessions. */
 
 module.exports = {
     handler: async function (client) {
+        /* Steam requests are spaced out, so a round can take a while; never overlap them. */
+        if (client.serverQueryRunning) return;
+        client.serverQueryRunning = true;
+        try {
+            await module.exports.round(client);
+        }
+        finally {
+            client.serverQueryRunning = false;
+        }
+    },
+
+    round: async function (client) {
         if (!client.serverQueryState) client.serverQueryState = {};
         if (!client.serverQueryHistory) client.serverQueryHistory = {};
 
+        const trackers = [];
         for (const guildItem of client.guilds.cache) {
             const guildId = guildItem[0];
+            const instance = client.getInstance(guildId);
+            if (!instance) continue;
+            for (const [trackerId, tracker] of Object.entries(instance.trackers)) {
+                if (tracker.queryAddress) trackers.push({ guildId, trackerId });
+            }
+        }
 
-            /* One failing server/tracker must not stop the others. */
+        /* One failing server/tracker must not stop the others. */
+        for (const { guildId, trackerId } of trackers) {
             try {
-                const instance = client.getInstance(guildId);
-
-                for (const [trackerId, tracker] of Object.entries(instance.trackers)) {
-                    if (!tracker.queryAddress) continue;
-
-                    try {
-                        await module.exports.pollTracker(client, guildId, trackerId);
-                    }
-                    catch (e) {
-                        client.log(client.intlGet(null, 'warningCap'),
-                            `Server query failed for tracker ${trackerId}: ${e.message}`);
-                        const state = client.serverQueryState[trackerId];
-                        if (state) state.lastError = e.message;
-                    }
-                }
+                await module.exports.pollServer(client, guildId, trackerId);
             }
             catch (e) {
-                client.log(client.intlGet(null, 'warningCap'), `Server query handler error: ${e.message}`);
+                client.log(client.intlGet(null, 'warningCap'),
+                    `Server query failed for tracker ${trackerId}: ${e.message}`);
+            }
+        }
+
+        /* A player watched by several trackers is checked on Steam once. */
+        const steamIds = [];
+        for (const { guildId, trackerId } of trackers) {
+            const tracker = client.getInstance(guildId).trackers[trackerId];
+            if (!tracker) continue;
+            for (const player of tracker.players) {
+                if (player.steamId !== null) steamIds.push(`${player.steamId}`);
+            }
+        }
+        try {
+            await SteamStatus.refresh(client, steamIds);
+        }
+        catch (e) {
+            client.log(client.intlGet(null, 'warningCap'), `Steam status round failed: ${e.message}`);
+        }
+
+        for (const { guildId, trackerId } of trackers) {
+            try {
+                await module.exports.applyPlayerStatus(client, guildId, trackerId);
+                await DiscordMessages.sendTrackerMessage(guildId, trackerId);
+            }
+            catch (e) {
+                client.log(client.intlGet(null, 'warningCap'),
+                    `Tracker ${trackerId} update failed: ${e.message}`);
             }
         }
     },
 
-    pollTracker: async function (client, guildId, trackerId) {
+    getState: function (client, trackerId) {
         if (!client.serverQueryState) client.serverQueryState = {};
-        if (!client.serverQueryHistory) client.serverQueryHistory = {};
+        return client.serverQueryState[trackerId] ??= {
+            online: {},     /* steamId -> playing-since timestamp, null when not playing */
+            applied: {},    /* steamId -> checkedAt of the Steam status last applied */
+            lastOk: null,
+            lastError: null,
+            playerCount: 0
+        };
+    },
 
+    /* Server line of the tracker: online and player count, from A2S. */
+    pollServer: async function (client, guildId, trackerId) {
         const instance = client.getInstance(guildId);
         const tracker = instance.trackers[trackerId];
         if (!tracker || !tracker.queryAddress) return;
@@ -83,7 +128,6 @@ module.exports = {
             if (address && fresh.trackers.hasOwnProperty(trackerId)) {
                 fresh.trackers[trackerId].queryAddress = address;
                 client.setInstance(guildId, fresh);
-                delete client.serverQueryState[trackerId];
                 client.log(client.intlGet(null, 'infoCap'),
                     `Tracker ${trackerId}: query address changed from app port to ${address}`);
             }
@@ -92,105 +136,78 @@ module.exports = {
         const [host, port] = module.exports.parseAddress(tracker.queryAddress);
         if (!host) return;
 
-        const state = client.serverQueryState[trackerId] ??= {
-            online: {},     /* watched key -> { connectedSince } */
-            absent: {},     /* watched key -> consecutive polls missing from a successful query */
-            knownNames: {}, /* watched key -> resolved lower name used for matching */
-            prevLowers: null, /* null until first successful query (baseline) */
-            lastOk: null,
-            lastError: null,
-            playerCount: 0
-        };
-
-        let players;
+        const state = module.exports.getState(client, trackerId);
         try {
-            players = (await ServerQuery.queryPlayers(host, port, POLL_TIMEOUT_MS)).map(e =>
-                ({ name: e.name, lower: e.name.toLowerCase() }));
+            const players = await ServerQuery.queryPlayers(host, port, POLL_TIMEOUT_MS);
+            state.lastError = null;
+            state.lastOk = Math.floor(Date.now() / 1000);
+            state.playerCount = players.length;
         }
         catch (e) {
-            /* Server unreachable (down, hidden from browser, wrong query port). Do not
-               synthesize disconnects — keep last known state and surface the error on the embed. */
+            /* Server unreachable (down, hidden from browser, wrong query port). */
             state.lastError = e.message;
-            await DiscordMessages.sendTrackerMessage(guildId, trackerId);
-            return;
         }
+    },
 
-        state.lastError = null;
-        state.lastOk = Math.floor(Date.now() / 1000);
-        state.playerCount = players.length;
+    /* Applies fresh Steam statuses to the tracker: playing sessions, alerts, name updates. */
+    applyPlayerStatus: async function (client, guildId, trackerId) {
+        const tracker = client.getInstance(guildId).trackers[trackerId];
+        if (!tracker) return;
 
-        const firstPoll = state.prevLowers === null;
+        const state = module.exports.getState(client, trackerId);
+        const statuses = client.steamStatus ?? {};
 
-        /* Watched players are keyed by steamId when present, else by lower name. */
         let renamed = false;
         for (const player of tracker.players) {
-            const key = player.steamId !== null ? `${player.steamId}` : (player.name ?? '').toLowerCase();
-            if (key === '' || key === 'null') continue;
+            if (player.steamId === null) continue;
+            const key = `${player.steamId}`;
+            const status = statuses[key];
+            if (!status || state.applied[key] === status.checkedAt) continue;
 
-            const lower = (player.name ?? '').toLowerCase();
-            const wasKnown = state.knownNames.hasOwnProperty(key);
-            state.knownNames[key] = lower;
+            /* First status since startup is the baseline: sessions are logged, no alerts. */
+            const firstSeen = !state.applied.hasOwnProperty(key);
+            state.applied[key] = status.checkedAt;
             if (!state.online.hasOwnProperty(key)) state.online[key] = null;
-            if (!state.absent.hasOwnProperty(key)) state.absent[key] = 0;
 
-            const matched = players.find(e => e.lower === lower);
-            const onServer = matched !== undefined;
-
-            /* Same name in different casing: take the spelling from the live server list. */
-            if (matched && matched.name !== player.name) {
-                player.name = matched.name;
+            if (status.name && status.name !== player.name) {
+                player.name = status.name;
                 renamed = true;
             }
 
-            if (onServer) {
-                state.absent[key] = 0;
-                if (!state.online[key]) {
-                    if (wasKnown && !firstPoll) {
-                        /* Reconnect: close previous session and open a new one. */
-                        module.exports.logSession(client, guildId, key, player, null, Date.now());
-                        await module.exports.alert(client, guildId, tracker,
-                            client.intlGet(guildId, 'sqAlertConnected',
-                                { name: player.name, server: tracker.title }));
-                    }
-                    state.online[key] = Date.now();
-                    module.exports.logSession(client, guildId, key, player, Date.now(), null);
+            const playing = status.state === 'rust';
+            if (playing && !state.online[key]) {
+                state.online[key] = Date.now();
+                module.exports.logSession(client, guildId, key, player, Date.now(), null);
+                if (!firstSeen) {
+                    await module.exports.alert(client, guildId, tracker,
+                        client.intlGet(guildId, 'trackerAlertStartedRust', { name: player.name }));
                 }
             }
-            else {
-                state.absent[key] = (state.absent[key] ?? 0) + 1;
-                /* Two consecutive absences before declaring a disconnect: tolerates a dropped
-                   poll while someone is reconnecting, and one failed A2S reply. */
-                if (state.online[key] !== null && state.absent[key] >= 2) {
-                    const connectedSince = state.online[key];
-                    state.online[key] = null;
-                    module.exports.logSession(client, guildId, key, player, null, Date.now());
-
-                    if (wasKnown && !firstPoll) {
-                        const duration = Timer.secondsToFullScale(
-                            Math.floor((Date.now() - connectedSince) / 1000));
-                        await module.exports.alert(client, guildId, tracker,
-                            client.intlGet(guildId, 'sqAlertDisconnected',
-                                { name: player.name, server: tracker.title, duration: duration }));
-                    }
-                }
+            else if (!playing && state.online[key]) {
+                const since = state.online[key];
+                state.online[key] = null;
+                module.exports.logSession(client, guildId, key, player, null, Date.now());
+                const duration = Timer.secondsToFullScale(Math.floor((Date.now() - since) / 1000));
+                await module.exports.alert(client, guildId, tracker,
+                    client.intlGet(guildId, 'trackerAlertStoppedRust', { name: player.name, duration: duration }));
+            }
+            else if (!playing && firstSeen) {
+                /* Close a session left open when the bot stopped while they were playing. */
+                module.exports.logSession(client, guildId, key, player, null, Date.now());
             }
         }
 
         /* Prune state of players removed from the tracker. */
-        const trackedKeys = new Set(tracker.players.map(player =>
-            player.steamId !== null ? `${player.steamId}` : (player.name ?? '').toLowerCase()));
-        for (const key of Object.keys(state.online)) {
+        const trackedKeys = new Set(tracker.players.filter(e => e.steamId !== null).map(e => `${e.steamId}`));
+        for (const key of Object.keys(state.applied)) {
             if (!trackedKeys.has(key)) {
                 delete state.online[key];
-                delete state.absent[key];
-                delete state.knownNames[key];
+                delete state.applied[key];
             }
         }
 
-        state.prevLowers = new Set(players.map(e => e.lower));
-
         if (renamed) {
-            /* Persist repaired names on a fresh read, merged so entries removed via the
+            /* Persist updated names on a fresh read, merged so entries removed via the
                Discord modal while we polled are not resurrected. */
             const BattlemetricsHandler = require('./battlemetricsHandler.js');
             const fresh = client.getInstance(guildId);
@@ -200,8 +217,6 @@ module.exports = {
                 client.setInstance(guildId, fresh);
             }
         }
-
-        await DiscordMessages.sendTrackerMessage(guildId, trackerId);
     },
 
     parseAddress: function (queryAddress) {
@@ -212,7 +227,7 @@ module.exports = {
     },
 
     /***********************************************************************************
-     *  Session history (per player on/offline times on this server)
+     *  Session history (per player times playing Rust, from Steam status)
      **********************************************************************************/
 
     historyPath: function (guildId) {
@@ -261,7 +276,7 @@ module.exports = {
         }
     },
 
-    /* Hours the player spent on the server over the last N days (for the embed). */
+    /* Hours the player spent playing Rust over the last N days (for the embed). */
     hoursLastDays: function (client, guildId, key, days) {
         const history = module.exports.loadHistory(client, guildId);
         if (!history.hasOwnProperty(key)) return null;

@@ -1142,52 +1142,6 @@ module.exports = async (client, interaction) => {
         const modal = DiscordModals.getGroupRemoveSwitchModal(guildId, ids.serverId, ids.groupId);
         await interaction.showModal(modal);
     }
-    else if (interaction.customId === 'TrackerResolver') {
-        const modal = DiscordModals.getTrackerResolverModal(guildId);
-        await interaction.showModal(modal);
-    }
-    else if (interaction.customId.startsWith('TrackerResolveAdd')) {
-        const ids = JSON.parse(interaction.customId.replace('TrackerResolveAdd', ''));
-        const DiscordSelectMenus = require('../discordTools/discordSelectMenus.js');
-
-        const pending = client.resolverPending ? client.resolverPending[ids.u] : null;
-        if (!pending || Date.now() - pending.ts > 5 * 60 * 1000 || !pending.candidates[ids.i]) {
-            await interaction.reply({
-                embeds: DiscordEmbeds.getActionInfoEmbed(1, client.intlGet(guildId, 'resolverExpired')).embeds,
-                flags: 64
-            });
-            return;
-        }
-        const candidate = pending.candidates[ids.i];
-
-        const trackerEntries = Object.entries(instance.trackers).filter(([, t]) => t.queryAddress);
-        if (trackerEntries.length === 0) {
-            await interaction.reply({
-                embeds: DiscordEmbeds.getActionInfoEmbed(1, client.intlGet(guildId, 'resolverNoTrackers')).embeds,
-                flags: 64
-            });
-            return;
-        }
-
-        const select = DiscordSelectMenus.getSelectMenu({
-            customId: `TrackerResolveTracker${JSON.stringify({ u: ids.u, i: ids.i })}`,
-            placeholder: client.intlGet(guildId, 'resolverSelectTracker'),
-            options: trackerEntries.map(([trackerId, tracker]) => ({
-                label: `${tracker.name}`.slice(0, 90),
-                description: `${tracker.queryAddress}`.slice(0, 100),
-                value: `${trackerId}`.slice(0, 100)
-            }))
-        });
-
-        await interaction.update({
-            embeds: [DiscordEmbeds.getEmbed({
-                color: Constants.COLOR_SETTINGS,
-                description: `**${candidate.name}** — ${candidate.server}\n\n` +
-                    client.intlGet(guildId, 'resolverPickTracker')
-            })],
-            components: [new Discord.ActionRowBuilder().addComponents(select)]
-        });
-    }
     else if (interaction.customId.startsWith('TrackerEveryone')) {
         const ids = JSON.parse(interaction.customId.replace('TrackerEveryone', ''));
         const tracker = instance.trackers[ids.trackerId];

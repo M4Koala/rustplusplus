@@ -432,16 +432,6 @@ module.exports = {
             }));
     },
 
-    getTrackerResolverButton: function (guildId) {
-        return [new Discord.ActionRowBuilder().addComponents(
-            module.exports.getButton({
-                label: Client.client.intlGet(guildId, 'trackerResolverButton'),
-                style: Discord.ButtonStyle.Secondary,
-                customId: `TrackerResolver`,
-                emoji: '🪪'
-            }))];
-    },
-
     getTrackerButtons: function (guildId, trackerId) {
         const instance = Client.client.getInstance(guildId);
         const tracker = instance.trackers[trackerId];

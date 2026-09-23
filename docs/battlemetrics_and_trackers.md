@@ -15,39 +15,35 @@ The config file should look something like this (NOTE: key below is invalid):
     }
 
 If no token is obtained, tracker functionality will be disabled.
-## Free alternative: direct server query tracking (this fork)
+## Free alternative: Steam status tracking (this fork)
 
-Without a Battlemetrics token, trackers still work — they query the Rust server directly over
-the Steam server browser protocol (A2S), for free:
+Without a Battlemetrics token, trackers still work, for free, with one big limitation:
+**they show whether a player is playing Rust, not on which server.**
 
-- Every server you pair gets a tracker-capable **query address** (`ip:port`). The Rust+ app
-  port does not answer queries, so the query port is looked up via Steam (keyless
+Why: Rust servers do not reveal who is online. The public player list of a server (A2S,
+the Steam server browser query) only contains a **random pseudonym per connection**
+(names like "gena" or "tyrone"; a player who reconnects comes back under a new one) plus
+the time on the server. No real names, no SteamIDs. So player status comes from Steam:
+
+- Add watched players via the tracker's **Add player** by pasting their **Steam profile
+  link**: both `steamcommunity.com/profiles/<SteamID64>` and custom
+  `steamcommunity.com/id/<name>` links work, as do the bare SteamID64 or custom URL name.
+  A custom link shows a chosen name, not the SteamID64, even when that name is a long
+  number; the bot resolves it.
+- The bot reads each player's public Steam profile (no API key) and shows
+  :green_circle: **playing Rust** (any server) with since-when, :red_circle: not playing
+  (last seen), and **hours in Rust over the last 7 days**. Start/stop is announced in the
+  trackers channel. The Steam profile name is kept up to date automatically.
+- **Only public profiles work.** Steam shows non-public profiles as offline to everyone;
+  those players are marked :lock: private. A player can make their status visible by
+  setting their Steam profile (game details) to public.
+- steamcommunity refuses requests that come too often, so profiles are checked one after
+  another with an adaptive gap (10 s at best; doubled after every refusal, up to 5 min).
+  With 3 watched players each is checked roughly every 30-45 s when Steam is not busy.
+- The tracker still queries its server directly for the server line (online, player
+  count). Every paired server gets a **query address** (`ip:port`). The Rust+ app port
+  does not answer queries, so the query port is looked up via Steam (keyless
   `GetServersAtAddress`); if Steam cannot tell, the default 28017 is used. Editable in the
   tracker edit modal.
-- Add watched players via the tracker's **Add player** by pasting their **Steam profile
-  link** — both `steamcommunity.com/profiles/<SteamID64>` and custom
-  `steamcommunity.com/id/<name>` links work, as do the bare SteamID64 or custom URL name.
-  The bot reads their Steam profile name (works for private profiles too). Or add them by
-  name via **Find player by name**.
-- The tracker embed shows **on server / not on server**, connected-for and **hours on server
-  over the last 7 days**; connect/disconnect are announced in the trackers channel.
-- Limitations vs Battlemetrics: Rust's A2S player list contains **only names** (plus score
-  and time on server), no SteamIDs. Matching is therefore by name, also for entries added
-  by SteamID64 (their Steam name is used). Name changes need a manual rename of the
-  watched entry, and servers hidden from the server browser cannot be queried.
 
-## Find player by name
-
-When you met someone and only know their in-game name:
-
-- **#trackers channel**: press **Find player by name** (posted once in the channel; it comes
-  back if deleted), enter (part of) the name, and every matching player online right now on
-  your paired and tracker servers is listed with the server and time on it. Press the
-  number button on the right one and pick the tracker. The player is added by name.
-- **Discord**: `/lookup name:<name>` lists the same matches.
-
-A SteamID cannot be looked up this way: Rust servers do not publish them. To track by
-SteamID64, paste the player's Steam profile link into the tracker's **Add player**. Note that
-a custom link (`steamcommunity.com/id/...`) shows a chosen name, not the SteamID64, even when
-that name is a long number; the bot resolves it.
 Teammates' SteamIDs are available in-game via `!steamid <name>`.

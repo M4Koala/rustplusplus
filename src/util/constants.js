@@ -106,6 +106,8 @@ module.exports = {
     OFFLINE_EMOJI: ':red_circle:',
     NOT_FOUND_EMOJI: ':x:',
     WARNING_EMOJI: ':warning:',
+    PRIVATE_EMOJI: ':lock:',
+    PENDING_EMOJI: ':hourglass:',
     AFK_EMOJI: ':yellow_circle:',
     ALIVE_EMOJI: ':nerd:',
     SLEEPING_EMOJI: ':sleeping:',
