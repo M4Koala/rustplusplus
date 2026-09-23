@@ -389,24 +389,42 @@ module.exports = async (client, interaction) => {
     else if (interaction.customId.startsWith('TrackerAddPlayer')) {
         const ids = JSON.parse(interaction.customId.replace('TrackerAddPlayer', ''));
         const tracker = instance.trackers[ids.trackerId];
-        const id = interaction.fields.getTextInputValue('TrackerAddPlayerId').trim();
+        const input = interaction.fields.getTextInputValue('TrackerAddPlayerId').trim();
 
         if (!tracker) {
             interaction.deferUpdate();
             return;
         }
 
-        /* The Steam profile lookup below can take longer than Discord's 3 s modal window. */
+        /* The Steam lookups below can take longer than Discord's 3 s modal window. */
         await interaction.deferUpdate();
 
-        const isSteamId64 = /^\d+$/.test(id) && id.length === Constants.STEAMID64_LENGTH;
         const bmInstance = client.battlemetricsInstances[tracker.battlemetricsId];
 
-        /* Anything that is not a SteamID64 is a Battlemetrics player ID, which needs BM. */
-        if (!isSteamId64 && !bmInstance) {
+        /* Steam links and custom URL names are resolved to the SteamID64. With Battlemetrics,
+           any other value that is not a SteamID64 is taken as a BM player ID. */
+        const isLink = /steamcommunity\.com\//i.test(input);
+        let profile = null;
+        if (isLink || !bmInstance || /^\d{17}$/.test(input)) {
+            try {
+                profile = await Scrape.resolveSteamProfile(input);
+            }
+            catch (e) {
+                await interaction.followUp({
+                    embeds: DiscordEmbeds.getActionInfoEmbed(1,
+                        client.intlGet(guildId, 'trackerAddPlayerSteamDown')).embeds,
+                    ephemeral: true
+                });
+                return;
+            }
+        }
+        const isSteamId64 = profile !== null;
+        const id = profile ? profile.steamId : input;
+
+        if (!isSteamId64 && (isLink || !bmInstance)) {
             await interaction.followUp({
                 embeds: DiscordEmbeds.getActionInfoEmbed(1,
-                    client.intlGet(guildId, 'trackerAddPlayerNotSteamId', { id: id })).embeds,
+                    client.intlGet(guildId, 'trackerAddPlayerNotSteamId', { id: input })).embeds,
                 ephemeral: true
             });
             return;
@@ -423,7 +441,17 @@ module.exports = async (client, interaction) => {
 
         if (isSteamId64) {
             steamId = id;
-            name = await Scrape.scrapeSteamProfileName(client, id);
+            name = profile.name ?? await Scrape.scrapeSteamProfileName(client, id);
+
+            /* Server-query trackers match by name, so an entry without one could never be seen. */
+            if (!name && tracker.queryAddress) {
+                await interaction.followUp({
+                    embeds: DiscordEmbeds.getActionInfoEmbed(1,
+                        client.intlGet(guildId, 'trackerAddPlayerSteamDown')).embeds,
+                    ephemeral: true
+                });
+                return;
+            }
 
             if (name && bmInstance) {
                 playerId = Object.keys(bmInstance.players).find(e => bmInstance.players[e]['name'] === name);
@@ -453,16 +481,6 @@ module.exports = async (client, interaction) => {
         }));
 
         await DiscordMessages.sendTrackerMessage(interaction.guildId, ids.trackerId);
-
-        /* Server-query trackers match by name, so a SteamID without a readable profile name
-           cannot be seen until the name is known. */
-        if (isSteamId64 && !name && tracker.queryAddress) {
-            await interaction.followUp({
-                embeds: DiscordEmbeds.getActionInfoEmbed(1,
-                    client.intlGet(guildId, 'trackerAddPlayerNoName', { steamId: id })).embeds,
-                ephemeral: true
-            });
-        }
     }
     else if (interaction.customId.startsWith('TrackerRemovePlayer')) {
         const ids = JSON.parse(interaction.customId.replace('TrackerRemovePlayer', ''));

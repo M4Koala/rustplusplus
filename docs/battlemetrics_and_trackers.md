@@ -24,8 +24,11 @@ the Steam server browser protocol (A2S), for free:
   port does not answer queries, so the query port is looked up via Steam (keyless
   `GetServersAtAddress`); if Steam cannot tell, the default 28017 is used. Editable in the
   tracker edit modal.
-- Add watched players by **SteamID64** (the bot reads their Steam profile name, which works
-  for private profiles too) or by name via **Find player by name**.
+- Add watched players via the tracker's **Add player** by pasting their **Steam profile
+  link** — both `steamcommunity.com/profiles/<SteamID64>` and custom
+  `steamcommunity.com/id/<name>` links work, as do the bare SteamID64 or custom URL name.
+  The bot reads their Steam profile name (works for private profiles too). Or add them by
+  name via **Find player by name**.
 - The tracker embed shows **on server / not on server**, connected-for and **hours on server
   over the last 7 days**; connect/disconnect are announced in the trackers channel.
 - Limitations vs Battlemetrics: Rust's A2S player list contains **only names** (plus score
@@ -44,5 +47,7 @@ When you met someone and only know their in-game name:
 - **Discord**: `/lookup name:<name>` lists the same matches.
 
 A SteamID cannot be looked up this way: Rust servers do not publish them. To track by
-SteamID64, get it from the player's Steam profile link (`steamcommunity.com/profiles/<id>`).
+SteamID64, paste the player's Steam profile link into the tracker's **Add player**. Note that
+a custom link (`steamcommunity.com/id/...`) shows a chosen name, not the SteamID64, even when
+that name is a long number; the bot resolves it.
 Teammates' SteamIDs are available in-game via `!steamid <name>`.

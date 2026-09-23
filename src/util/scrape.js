@@ -51,6 +51,30 @@ module.exports = {
         return null;
     },
 
+    /* { steamId, name } from what people copy off Steam: the SteamID64 itself, a
+       /profiles/<id> link, or a custom /id/<name> link (or the bare custom name, which can
+       look like a long number). Custom URLs are resolved via the profile's public XML, which
+       also carries the profile name (otherwise name is null). Null when no profile matches;
+       throws when Steam does not answer (steamcommunity throttles bursts). */
+    resolveSteamProfile: async function (input) {
+        const text = `${input}`.trim();
+        if (/^\d{17}$/.test(text)) return { steamId: text, name: null };
+
+        const profileLink = text.match(/steamcommunity\.com\/profiles\/(\d{17})/i);
+        if (profileLink) return { steamId: profileLink[1], name: null };
+
+        const customLink = text.match(/steamcommunity\.com\/id\/([^/?#\s]+)/i);
+        const customName = customLink ? customLink[1] : text;
+        if (!/^[A-Za-z0-9_-]{2,32}$/.test(customName)) return null;
+
+        const response = await module.exports.scrape(`${Constants.STEAM_CUSTOM_URL}${customName}/?xml=1`);
+        if (response.status !== 200) throw new Error('Steam community did not answer');
+        const steamId = /<steamID64>(\d{17})<\/steamID64>/.exec(response.data);
+        if (!steamId) return null;
+        const name = /<steamID><!\[CDATA\[(.*?)\]\]><\/steamID>/s.exec(response.data);
+        return { steamId: steamId[1], name: name && name[1] !== '' ? name[1] : null };
+    },
+
     scrapeSteamProfileName: async function (client, steamId) {
         const response = await module.exports.scrape(`${Constants.STEAM_PROFILES_URL}${steamId}`);
 

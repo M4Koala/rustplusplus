@@ -341,8 +341,7 @@ module.exports = {
         modal.addComponents(
             new Discord.ActionRowBuilder().addComponents(TextInput.getTextInput({
                 customId: 'TrackerAddPlayerId',
-                label: `${Client.client.intlGet(guildId, 'steamId')} / ` +
-                    `${Client.client.intlGet(guildId, 'battlemetricsId')}`,
+                label: Client.client.intlGet(guildId, 'trackerAddPlayerIdLabel'),
                 value: '',
                 style: Discord.TextInputStyle.Short
             }))
