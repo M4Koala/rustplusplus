@@ -105,22 +105,37 @@ module.exports = {
         }
         description += `\n${server.description}`;
 
+        const fields = [{
+            name: Client.client.intlGet(guildId, 'connect'),
+            value: `\`${server.connect === null ?
+                Client.client.intlGet(guildId, 'unavailable') : server.connect}\``,
+            inline: true
+        }];
+
+        /* Game server status (gameServerStatusHandler), only kept for the active server. */
+        const state = server.gameServerState;
+        if (state && instance.activeServer === serverId) {
+            const since = Math.floor(state.since / 1000);
+            fields.push({
+                name: Client.client.intlGet(guildId, 'serverStatus'),
+                value: `${state.online ? Constants.ONLINE_EMOJI : Constants.OFFLINE_EMOJI} ` +
+                    `${Client.client.intlGet(guildId, state.online ? 'online' : 'offline')} · <t:${since}:R>`,
+                inline: true
+            });
+        }
+
+        fields.push({
+            name: Client.client.intlGet(guildId, 'hoster'),
+            value: `\`${hoster} (${server.steamId})\``,
+            inline: false
+        });
+
         return module.exports.getEmbed({
             title: `${server.title}`,
             color: Constants.COLOR_DEFAULT,
             description: description,
             thumbnail: `${server.img}`,
-            fields: [{
-                name: Client.client.intlGet(guildId, 'connect'),
-                value: `\`${server.connect === null ?
-                    Client.client.intlGet(guildId, 'unavailable') : server.connect}\``,
-                inline: true
-            },
-            {
-                name: Client.client.intlGet(guildId, 'hoster'),
-                value: `\`${hoster} (${server.steamId})\``,
-                inline: false
-            }]
+            fields: fields
         });
     },
 
@@ -771,23 +786,28 @@ module.exports = {
         };
     },
 
-    getServerChangedStateEmbed: function (guildId, serverId, state) {
-        /* state: 0 = online, 1 = offline, 2 = connection lost but battlemetrics reports online. */
+    getServerChangedStateEmbed: function (guildId, serverId, state, description = null) {
+        /* state: 0 = online, 1 = offline, 2 = Rust+ connection lost while the server is up,
+           3 = Rust+ connection restored after 2. */
         const instance = Client.client.getInstance(guildId);
         const server = instance.serverList[serverId];
 
         let title = null;
         if (state === 0) title = Client.client.intlGet(guildId, 'serverJustOnline');
         else if (state === 1) title = Client.client.intlGet(guildId, 'serverJustOffline');
-        else title = Client.client.intlGet(guildId, 'serverConnectionLost');
+        else if (state === 2) title = Client.client.intlGet(guildId, 'serverConnectionLost');
+        else title = Client.client.intlGet(guildId, 'serverConnectionRestored');
 
-        return module.exports.getEmbed({
-            color: state ? Constants.COLOR_INACTIVE : Constants.COLOR_ACTIVE,
+        const options = {
+            color: (state === 0 || state === 3) ? Constants.COLOR_ACTIVE : Constants.COLOR_INACTIVE,
             title: title,
             thumbnail: server.img,
             timestamp: true,
             footer: { text: server.title }
-        });
+        };
+        if (description) options.description = description;
+
+        return module.exports.getEmbed(options);
     },
 
     getServerWipeDetectedEmbed: function (guildId, serverId) {

@@ -59,9 +59,9 @@ module.exports = {
     },
 
     /* Every Rust server Steam lists on this IP: [{ address: 'ip:queryPort', gamePort }]. */
-    rustServersAt: async function (ip) {
+    rustServersAt: async function (ip, maxAgeMs = STEAM_CACHE_MS) {
         const cached = steamCache[ip];
-        if (cached && Date.now() - cached.ts < STEAM_CACHE_MS) return cached.servers;
+        if (cached && Date.now() - cached.ts < maxAgeMs) return cached.servers;
 
         const response = await Axios.get(STEAM_SERVERS_AT_ADDRESS, { params: { addr: ip }, timeout: 5000 });
         const servers = (response.data?.response?.servers ?? [])
@@ -74,10 +74,10 @@ module.exports = {
 
     /* Query address ('ip:port') of a Rust+ paired server, or null when it cannot be told
        apart: the only server on its IP, else the one whose game port fits the app port. */
-    forPairedServer: async function (ip, appPort) {
+    forPairedServer: async function (ip, appPort, maxAgeMs = STEAM_CACHE_MS) {
         let servers;
         try {
-            servers = await module.exports.rustServersAt(ip);
+            servers = await module.exports.rustServersAt(ip, maxAgeMs);
         }
         catch (e) {
             return null;

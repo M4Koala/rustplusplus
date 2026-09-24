@@ -596,7 +596,8 @@ module.exports = async (client, interaction) => {
         /* Direct A2S query address (ip:port), used by serverQueryHandler when set; free
            replacement for the (now paid) Battlemetrics player tracking. The Rust+ app port
            does not answer A2S — Steam knows the query port; else assume the default. */
-        const queryAddress = await ServerQuery.forPairedServer(server.serverIp, server.appPort) ??
+        const queryAddress = server.queryAddress ??
+            await ServerQuery.forPairedServer(server.serverIp, server.appPort) ??
             `${server.serverIp}:${ServerQuery.DEFAULT_QUERY_PORT}`;
 
         /* Find an available tracker id */

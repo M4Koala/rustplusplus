@@ -59,6 +59,7 @@ class DiscordBot extends Discord.Client {
         this.rustplusStashes = new Object();            /* Stashed state of disconnected rustplus instances. */
         this.rustplusOfflineAnnounced = new Object();   /* Whether the offline message was sent for the guild. */
         this.rustplusFirstDisconnectTime = new Object();
+        this.gameServerStatus = new Object();           /* Game server monitor per guild (gameServerStatusHandler). */
 
         this.uptimeBot = null;
 

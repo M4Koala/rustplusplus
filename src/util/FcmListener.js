@@ -273,6 +273,9 @@ async function pairingServerHandler(client, guild, title, message, body) {
         messageId: instance.serverList[serverId] ? instance.serverList[serverId].messageId : null,
         battlemetricsId: battlemetricsId,
         connect: connect,
+        /* Game server status (gameServerStatusHandler), survives re-pairing. */
+        queryAddress: server?.queryAddress ?? null,
+        gameServerState: server?.gameServerState ?? null,
         cargoShipEgressTimeMs: server ? server.cargoShipEgressTimeMs : Constants.DEFAULT_CARGO_SHIP_EGRESS_TIME_MS,
         oilRigLockedCrateUnlockTimeMs: server ? server.oilRigLockedCrateUnlockTimeMs :
             Constants.DEFAULT_OIL_RIG_LOCKED_CRATE_UNLOCK_TIME_MS,

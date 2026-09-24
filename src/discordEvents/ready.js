@@ -22,6 +22,7 @@ const Discord = require('discord.js');
 const Path = require('path');
 
 const BattlemetricsHandler = require('../handlers/battlemetricsHandler.js');
+const GameServerStatusHandler = require('../handlers/gameServerStatusHandler.js');
 const ServerQueryHandler = require('../handlers/serverQueryHandler.js');
 const Config = require('../../config');
 const CredentialsExpiryHandler = require('../handlers/credentialsExpiryHandler.js');
@@ -89,5 +90,10 @@ module.exports = {
         client.credentialsExpiryIntervalId = setInterval(CredentialsExpiryHandler.handler, 60 * 60 * 1000, client);
 
         client.createRustplusInstancesFromConfig();
+
+        /* Game server online/offline from direct server queries, follows the active servers. */
+        GameServerStatusHandler.sync(client);
+        client.gameServerStatusIntervalId = setInterval(GameServerStatusHandler.sync,
+            GameServerStatusHandler.SYNC_INTERVAL_MS, client);
     },
 };

@@ -24,8 +24,17 @@ module.exports = {
         pollingIntervalMs: process.env.RPP_POLLING_INTERVAL || 10000,
         showCallStackError: process.env.RPP_LOG_CALL_STACK || false,
         reconnectIntervalMs: process.env.RPP_RECONNECT_INTERVAL || 15000,
-        /* How long a connection must stay down before the server is announced offline. */
+        /* How long the Rust+ connection must stay down before it is announced: as "connection
+           lost" while the game server is up, as offline when no game server status is known. */
         offlineGracePeriodMs: process.env.RPP_OFFLINE_GRACE_PERIOD || 60000,
+        /* Game server online/offline from direct Steam server queries of the active server
+           (handlers/gameServerStatusHandler.js). Polls every POLL_INTERVAL while it answers,
+           every FAST_POLL_INTERVAL while it is down or late; offline after OFFLINE_AFTER
+           without an answer (sooner when the host reports the port closed). */
+        gameServerMonitor: (process.env.RPP_GAME_SERVER_MONITOR ?? 'true') !== 'false',
+        gameServerPollIntervalMs: parseInt(process.env.RPP_GAME_SERVER_POLL_INTERVAL) || 1000,
+        gameServerFastPollIntervalMs: parseInt(process.env.RPP_GAME_SERVER_FAST_POLL_INTERVAL) || 250,
+        gameServerOfflineAfterMs: parseInt(process.env.RPP_GAME_SERVER_OFFLINE_AFTER) || 10000,
     },
     discord: {
         username: process.env.RPP_DISCORD_USERNAME || 'rustplusplus',

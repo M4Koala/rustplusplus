@@ -206,6 +206,34 @@ exact display-name/shortname matches now short-circuit before the fuzzy stages.
   map download, to be as early as possible on wipe-day restarts. Reconnect attempts run
   every 15 s (`RPP_RECONNECT_INTERVAL` to lower it further).
 
+## Game server status independent of Rust+ (replaces the Battlemetrics second source)
+Battlemetrics now needs a paid token, which silently turned the second status source off:
+every outage waited out the 60 s grace, and on servers whose Rust+ API drops for a minute
+or two several times an hour (Rusticated), a flap past the grace posted a false "offline".
+
+`handlers/gameServerStatusHandler.js` + `structures/GameServerMonitor.js` now poll the active
+server's Steam query port directly (A2S_INFO over a connected UDP socket). Rust answers only
+once it has finished loading, so an answer = players can join.
+* **Online**: the first answer. Polled every 250 ms while down → ~250 ms + one round trip
+  (measured 16–293 ms), independent of the Rust+ retry cycle. The Rust+ reconnect is kicked
+  right away and retries every 3 s for a minute after the server came up.
+* **Offline**: the host reports the query port closed twice (process gone; ICMP port
+  unreachable = ECONNREFUSED on Linux, verified against Rusticated's host) → ~1.3 s; no
+  answer for 3 s while Rust+ dropped too → 3 s; no answer for 10 s → 10 s (host down).
+* Rust+ drops while the game server keeps answering post nothing within the grace period;
+  after it "Rust+ connection lost, server still online", and "Rust+ connection restored" on
+  reconnect. The state stash (events/AFK/timers) is untouched — it never depended on BM.
+* Query address looked up via Steam `GetServersAtAddress` once, stored as `queryAddress` in
+  the server entry. Without one, or while it looks stale (Rust+ connected 30 s, query port
+  silent all along), the Rust+ based announcements take over; answering again restores it.
+* Last state stored as `gameServerState` in the server entry (cleared when the server is
+  deactivated): bot restarts neither repeat nor miss an announcement; the server card shows
+  "Server Status: Online/Offline · <relative time>"; `connect ip:port` is filled from the
+  query answer when Battlemetrics did not provide it and is included in the online message.
+* The wipe purge of #activity keeps the "server went online" message that opened the wipe.
+* Env: `RPP_GAME_SERVER_MONITOR=false` disables it; `RPP_GAME_SERVER_POLL_INTERVAL` (1000),
+  `RPP_GAME_SERVER_FAST_POLL_INTERVAL` (250), `RPP_GAME_SERVER_OFFLINE_AFTER` (10000) in ms.
+
 ## New: Deep Sea event tracking
 Detected via the floating-city vendor vending-machine markers (Attire Shop Vendor, Firearms
 Vendor, Fish Exchange Vending Machine, ...; ≥3 distinct official names required, location =

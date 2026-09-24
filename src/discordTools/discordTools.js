@@ -279,18 +279,18 @@ module.exports = {
         return true;
     },
 
-    purgeTextChannel: async function (guildId, idName) {
+    purgeTextChannel: async function (guildId, idName, beforeTimestamp = Date.now()) {
         /* Deletes the entire message history of a channel in place. The channel itself is
            reused, so its id, position and permission overwrites all stay untouched. Only
-           messages that existed when the purge started are deleted, anything posted afterwards
-           (the new wipe's messages) is safe, which also makes it safe to run this in the
-           background without awaiting it. Messages younger than 14 days are removed in bulk,
-           older ones have to go one by one. */
+           messages that existed when the purge started (or before beforeTimestamp) are
+           deleted, anything posted afterwards (the new wipe's messages) is safe, which also
+           makes it safe to run this in the background without awaiting it. Messages younger
+           than 14 days are removed in bulk, older ones have to go one by one. */
         const instance = Client.client.getInstance(guildId);
         const channel = module.exports.getTextChannelById(guildId, instance.channelId[idName]);
         if (!channel) return;
 
-        const boundaryId = Discord.SnowflakeUtil.generate({ timestamp: Date.now() }).toString();
+        const boundaryId = Discord.SnowflakeUtil.generate({ timestamp: beforeTimestamp }).toString();
 
         let totalDeleted = 0;
         for (let pass = 0; pass < 200; pass++) {

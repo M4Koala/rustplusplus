@@ -335,11 +335,11 @@ module.exports = {
         await module.exports.sendMessage(guildId, content, null, instance.channelId.activity);
     },
 
-    sendServerChangeStateMessage: async function (guildId, serverId, state) {
+    sendServerChangeStateMessage: async function (guildId, serverId, state, description = null) {
         const instance = Client.client.getInstance(guildId);
 
         const content = {
-            embeds: [DiscordEmbeds.getServerChangedStateEmbed(guildId, serverId, state)]
+            embeds: [DiscordEmbeds.getServerChangedStateEmbed(guildId, serverId, state, description)]
         }
 
         await module.exports.sendMessage(guildId, content, null, instance.channelId.activity);

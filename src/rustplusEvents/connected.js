@@ -21,6 +21,7 @@
 const Constants = require('../util/constants.js');
 const DiscordMessages = require('../discordTools/discordMessages.js');
 const DiscordTools = require('../discordTools/discordTools.js');
+const GameServerStatusHandler = require('../handlers/gameServerStatusHandler.js');
 const Info = require('../structures/Info');
 const InGameChatHandler = require('../handlers/inGameChatHandler.js');
 const Map = require('../structures/Map');
@@ -55,11 +56,15 @@ module.exports = {
                 client.rustplusReconnectTimers[guildId] = null;
             }
 
-            /* Only announce online when offline was announced, short connection blips within
-               the grace period stay silent. */
-            if (client.rustplusOfflineAnnounced[guildId]) {
-                await DiscordMessages.sendServerChangeStateMessage(guildId, serverId, 0);
+            /* Short connection blips within the grace period stay silent. */
+            if (client.rustplusOfflineAnnounced[guildId] === 'lost') {
+                await DiscordMessages.sendServerChangeStateMessage(guildId, serverId, 3);
             }
+        }
+        /* Rust+ answering proves the game server is up. Announced here only when the (faster)
+           game server monitor does not cover it; unchanged state stays silent. */
+        if (!GameServerStatusHandler.isAuthoritative(client, guildId, serverId)) {
+            await GameServerStatusHandler.setState(client, guildId, serverId, true);
         }
         client.rustplusOfflineAnnounced[guildId] = false;
         client.rustplusFirstDisconnectTime[guildId] = null;
@@ -126,11 +131,13 @@ module.exports = {
            and information channels. The channels are purged in place (never replaced), so
            their ids, positions and permissions survive the wipe. The purges run in the
            background and only touch messages from before this point in time, so the new
-           wipe's messages posted below are safe. */
+           wipe's messages posted below are safe; so is the "server went online" message that
+           opened the new wipe. */
         if (wipeDetected || (rustplus.isNewConnection && instance.lastConnectedServerId !== serverId)) {
             DiscordTools.purgeTextChannel(guildId, 'events');
             DiscordTools.purgeTextChannel(guildId, 'teamchat');
-            DiscordTools.purgeTextChannel(guildId, 'activity');
+            DiscordTools.purgeTextChannel(guildId, 'activity',
+                wipeDetected ? GameServerStatusHandler.purgeBoundary(client, guildId, serverId) : Date.now());
             await DiscordTools.clearInformationChannel(guildId);
         }
         if (instance.lastConnectedServerId !== serverId) {

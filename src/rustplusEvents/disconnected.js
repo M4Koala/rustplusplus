@@ -19,6 +19,7 @@
 */
 
 const DiscordMessages = require('../discordTools/discordMessages.js');
+const GameServerStatusHandler = require('../handlers/gameServerStatusHandler.js');
 
 const Config = require('../../config');
 
@@ -85,25 +86,35 @@ module.exports = {
                 client.rustplusReconnecting[guildId] = true;
                 client.rustplusFirstDisconnectTime[guildId] = Date.now();
 
-                /* Show RECONNECTING on the server embed immediately, but delay the offline
-                   announcement by the grace period to avoid spam on short connection blips. */
+                /* Show RECONNECTING on the server embed immediately, but delay the announcement
+                   by the grace period to avoid spam on short connection blips. */
                 await DiscordMessages.sendServerMessage(guildId, serverId, 2);
             }
 
-            /* Announce offline immediately when battlemetrics confirms the server is down
-               (real outage/restart), otherwise wait out the grace period so that pure
-               connection blips stay silent. Battlemetrics data refreshes every 60 seconds. */
             const firstDisconnectTime = client.rustplusFirstDisconnectTime[guildId] ?? Date.now();
+            const graceOver = (Date.now() - firstDisconnectTime) >= Config.general.offlineGracePeriodMs;
             if (!client.rustplusOfflineAnnounced[guildId]) {
-                const bmOnline = module.exports.isServerOnlineBattlemetrics(client, guildId, serverId);
-                if (bmOnline === false) {
-                    client.rustplusOfflineAnnounced[guildId] = true;
-                    await DiscordMessages.sendServerChangeStateMessage(guildId, serverId, 1);
+                if (GameServerStatusHandler.isAuthoritative(client, guildId, serverId)) {
+                    /* The game server monitor announces real outages the moment they happen.
+                       Left to report here: Rust+ down while the game server stays up. */
+                    if (graceOver && GameServerStatusHandler.isOnline(client, guildId)) {
+                        client.rustplusOfflineAnnounced[guildId] = 'lost';
+                        await DiscordMessages.sendServerChangeStateMessage(guildId, serverId, 2);
+                    }
                 }
-                else if ((Date.now() - firstDisconnectTime) >= Config.general.offlineGracePeriodMs) {
-                    client.rustplusOfflineAnnounced[guildId] = true;
-                    await DiscordMessages.sendServerChangeStateMessage(guildId, serverId,
-                        (bmOnline === true) ? 2 : 1);
+                else {
+                    /* No game server status: announce offline immediately when battlemetrics
+                       confirms the server is down, otherwise after the grace period so that pure
+                       connection blips stay silent. Battlemetrics refreshes every 60 seconds. */
+                    const bmOnline = module.exports.isServerOnlineBattlemetrics(client, guildId, serverId);
+                    if (bmOnline === true && graceOver) {
+                        client.rustplusOfflineAnnounced[guildId] = 'lost';
+                        await DiscordMessages.sendServerChangeStateMessage(guildId, serverId, 2);
+                    }
+                    else if (bmOnline === false || graceOver) {
+                        client.rustplusOfflineAnnounced[guildId] = 'offline';
+                        await GameServerStatusHandler.setState(client, guildId, serverId, false, firstDisconnectTime);
+                    }
                 }
             }
 
@@ -111,24 +122,29 @@ module.exports = {
 
             delete client.rustplusInstances[guildId];
 
-            if (client.rustplusReconnectTimers[guildId]) {
-                clearTimeout(client.rustplusReconnectTimers[guildId]);
-                client.rustplusReconnectTimers[guildId] = null;
-            }
-
-            client.rustplusReconnectTimers[guildId] = setTimeout(() => {
-                client.rustplusReconnectTimers[guildId] = null;
-
-                /* Read the current server data at reconnect time, the playerToken might have
-                   been refreshed by a new pairing while offline (e.g. after a wipe). */
-                const currentInstance = client.getInstance(guildId);
-                if (!currentInstance || !currentInstance.serverList.hasOwnProperty(serverId)) return;
-
-                const server = currentInstance.serverList[serverId];
-                client.createRustplusInstance(
-                    guildId, server.serverIp, server.appPort, server.steamId, server.playerToken);
-            }, Config.general.reconnectIntervalMs);
+            module.exports.scheduleReconnect(client, guildId, serverId,
+                GameServerStatusHandler.reconnectDelayMs(client, guildId));
         }
+    },
+
+    scheduleReconnect: function (client, guildId, serverId, delayMs) {
+        if (client.rustplusReconnectTimers[guildId]) {
+            clearTimeout(client.rustplusReconnectTimers[guildId]);
+            client.rustplusReconnectTimers[guildId] = null;
+        }
+
+        client.rustplusReconnectTimers[guildId] = setTimeout(() => {
+            client.rustplusReconnectTimers[guildId] = null;
+
+            /* Read the current server data at reconnect time, the playerToken might have
+               been refreshed by a new pairing while offline (e.g. after a wipe). */
+            const currentInstance = client.getInstance(guildId);
+            if (!currentInstance || !currentInstance.serverList.hasOwnProperty(serverId)) return;
+
+            const server = currentInstance.serverList[serverId];
+            client.createRustplusInstance(
+                guildId, server.serverIp, server.appPort, server.steamId, server.playerToken);
+        }, delayMs);
     },
 
     isServerOnlineBattlemetrics: function (client, guildId, serverId) {
